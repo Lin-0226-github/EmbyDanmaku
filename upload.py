@@ -33,7 +33,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-VERSION = "v7"
+VERSION = "v8"
 
 API = os.environ.get("GH_API", "https://api.github.com").rstrip("/")
 REPO_NAME = os.environ.get("GH_REPO", "EmbyDanmaku")
@@ -105,16 +105,27 @@ def request(method, path, token, payload=None):
 
 
 def restore_hidden_files(root):
-    """把 iOS「文件」App 看不见的 .github 工作流补回来"""
+    """用可见的 github-workflow.txt 强制刷新 .github/workflows/build-ipa.yml。
+    iOS「文件」App 看不见 .github 目录，本地那份可能是旧版；
+    每次都以 github-workflow.txt 为准覆盖，保证云端工作流是最新修复版。
+    """
     wf = os.path.join(root, ".github", "workflows", "build-ipa.yml")
     src = os.path.join(root, "github-workflow.txt")
-    if not os.path.isfile(wf) and os.path.isfile(src):
-        os.makedirs(os.path.dirname(wf), exist_ok=True)
-        with open(src, "r", encoding="utf-8") as f:
-            content = f.read()
-        with open(wf, "w", encoding="utf-8") as f:
-            f.write(content)
-        print("已补回 .github/workflows/build-ipa.yml", flush=True)
+    if not os.path.isfile(src):
+        return
+    with open(src, "r", encoding="utf-8") as f:
+        content = f.read()
+    if os.path.isfile(wf):
+        try:
+            with open(wf, "r", encoding="utf-8") as f:
+                if f.read() == content:
+                    return  # 本地已是最新，无需覆盖
+        except OSError:
+            pass
+    os.makedirs(os.path.dirname(wf), exist_ok=True)
+    with open(wf, "w", encoding="utf-8") as f:
+        f.write(content)
+    print("已用 github-workflow.txt 刷新 .github/workflows/build-ipa.yml", flush=True)
 
 
 def locate_root():

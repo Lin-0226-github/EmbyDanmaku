@@ -65,7 +65,7 @@ jobs:
             -target "$TARGET" \
             -configuration Release \
             -sdk iphoneos \
-            -derivedDataPath build \
+            SYMROOT=build OBJROOT=build/Intermediates \
             IPHONEOS_DEPLOYMENT_TARGET=15.0 \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
@@ -78,10 +78,10 @@ jobs:
       - name: 打包未签名 IPA
         if: ${{ github.event.inputs.sign_mode != 'signed' }}
         run: |
-          APP="build/Build/Products/Release-iphoneos/$APP_NAME.app"
+          APP="build/Release-iphoneos/$APP_NAME.app"
           if [ ! -d "$APP" ]; then
             echo "::error::未找到构建产物 $APP"
-            ls -R build/Build/Products 2>/dev/null || true
+            ls -R build 2>/dev/null | head -40 || true
             exit 1
           fi
           mkdir -p Payload
@@ -141,7 +141,7 @@ jobs:
             -target "$TARGET" \
             -configuration Release \
             -sdk iphoneos \
-            -derivedDataPath build-signed \
+            SYMROOT=build-signed OBJROOT=build-signed/Intermediates \
             IPHONEOS_DEPLOYMENT_TARGET=15.0 \
             CODE_SIGNING_ALLOWED=YES \
             CODE_SIGNING_REQUIRED=YES \
@@ -150,7 +150,7 @@ jobs:
             PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
             build | tail -30
 
-          APP="build-signed/Build/Products/Release-iphoneos/$APP_NAME.app"
+          APP="build-signed/Release-iphoneos/$APP_NAME.app"
           if [ ! -d "$APP" ]; then
             echo "::error::未找到签名产物 $APP"
             exit 1
