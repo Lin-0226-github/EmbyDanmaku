@@ -60,7 +60,7 @@ jobs:
         if: ${{ github.event.inputs.sign_mode != 'signed' }}
         run: |
           set -o pipefail
-          xcodebuild \
+          if ! xcodebuild \
             -project "$PROJECT" \
             -target "$TARGET" \
             -configuration Release \
@@ -73,7 +73,13 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             VALIDATE_PRODUCT=NO \
             GCC_WARN_INHIBIT_ALL_WARNINGS=YES \
-            build | tail -30
+            build 2>&1 | tee build.log | tail -5; then
+            echo ""
+            echo "=========== 全部编译错误汇总（去重） ==========="
+            grep -E " error: " build.log | sort -u | head -60
+            echo "================================================"
+            exit 1
+          fi
 
       - name: 打包未签名 IPA
         if: ${{ github.event.inputs.sign_mode != 'signed' }}
@@ -136,7 +142,7 @@ jobs:
         run: |
           set -o pipefail
           IDENTITY="${CODE_SIGN_IDENTITY:-Apple Development}"
-          xcodebuild \
+          if ! xcodebuild \
             -project "$PROJECT" \
             -target "$TARGET" \
             -configuration Release \
@@ -148,7 +154,13 @@ jobs:
             CODE_SIGN_IDENTITY="$IDENTITY" \
             DEVELOPMENT_TEAM="$TEAM_ID" \
             PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
-            build | tail -30
+            build 2>&1 | tee build-signed.log | tail -5; then
+            echo ""
+            echo "=========== 全部编译错误汇总（去重） ==========="
+            grep -E " error: " build-signed.log | sort -u | head -60
+            echo "================================================"
+            exit 1
+          fi
 
           APP="build-signed/Release-iphoneos/$APP_NAME.app"
           if [ ! -d "$APP" ]; then

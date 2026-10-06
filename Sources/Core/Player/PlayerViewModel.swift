@@ -282,50 +282,53 @@ final class PlayerViewModel: ObservableObject {
         // 播放进度
         let interval = CMTime(value: 1, timescale: 5)
         timeObserverToken = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] _ in
-            guard let self, let item = self.player.currentItem else { return }
+            guard let strongSelf = self, let item = strongSelf.player.currentItem else { return }
             let t = item.currentTime()
             guard t.isNumeric, t.seconds.isFinite else { return }
             Task { @MainActor in
-                self.currentTime = t.seconds
-                self.updateExternalSubtitle(at: t.seconds)
-                self.maybeReportProgress(at: t.seconds)
+                strongSelf.currentTime = t.seconds
+                strongSelf.updateExternalSubtitle(at: t.seconds)
+                strongSelf.maybeReportProgress(at: t.seconds)
             }
         }
 
         statusObservation = playerItem.observe(\.status) { [weak self] item, _ in
+            guard let strongSelf = self else { return }
             Task { @MainActor in
-                guard let self else { return }
                 switch item.status {
                 case .readyToPlay:
-                    self.isBuffering = false
+                    strongSelf.isBuffering = false
                 case .failed:
-                    self.isBuffering = false
-                    self.errorMessage = item.error?.localizedDescription ?? "播放失败"
+                    strongSelf.isBuffering = false
+                    strongSelf.errorMessage = item.error?.localizedDescription ?? "播放失败"
                 default:
-                    self.isBuffering = true
+                    strongSelf.isBuffering = true
                 }
             }
         }
 
         bufferObservation = playerItem.observe(\.loadedTimeRanges) { [weak self] item, _ in
+            guard let strongSelf = self, let range = item.loadedTimeRanges.first?.timeRangeValue else { return }
+            let end = range.start + range.duration
             Task { @MainActor in
-                guard let self, let range = item.loadedTimeRanges.first?.timeRangeValue else { return }
-                let end = range.start + range.duration
-                self.loadedDuration = end.seconds
+                strongSelf.loadedDuration = end.seconds
             }
         }
 
         rateObservation = player.observe(\.rate) { [weak self] p, _ in
+            guard let strongSelf = self else { return }
             Task { @MainActor in
-                guard let self else { return }
-                self.isPlaying = p.rate > 0
+                strongSelf.isPlaying = p.rate > 0
             }
         }
 
         endObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime,
                                                              object: playerItem,
                                                              queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.handlePlaybackEnd() }
+            guard let strongSelf = self else { return }
+            Task { @MainActor in
+                strongSelf.handlePlaybackEnd()
+            }
         }
     }
 
@@ -429,12 +432,12 @@ final class PlayerViewModel: ObservableObject {
             currentExternalIndex = idx
             subtitleLoadTask?.cancel()
             subtitleLoadTask = Task { [weak self] in
-                guard let self else { return }
+                guard let strongSelf = self else { return }
                 let cues = await SubtitleParser.parse(url: url)
                 guard !Task.isCancelled else { return }
                 await MainActor.run {
-                    self.externalCues = cues
-                    self.updateExternalSubtitle(at: self.currentTime)
+                    strongSelf.externalCues = cues
+                    strongSelf.updateExternalSubtitle(at: strongSelf.currentTime)
                 }
             }
         }
@@ -551,19 +554,19 @@ final class PlayerViewModel: ObservableObject {
         sleepTimer.objectWillChange
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
-                guard let self else { return }
-                self.sleepActive = self.sleepTimer.isActive
-                self.sleepRemainingText = self.sleepTimer.isActive ? self.sleepTimer.remainingText : nil
-                self.objectWillChange.send()
+                guard let strongSelf = self else { return }
+                strongSelf.sleepActive = strongSelf.sleepTimer.isActive
+                strongSelf.sleepRemainingText = strongSelf.sleepTimer.isActive ? strongSelf.sleepTimer.remainingText : nil
+                strongSelf.objectWillChange.send()
             }
             .store(in: &cancellables)
 
         sleepTimer.onFire = { [weak self] in
-            guard let self else { return }
-            self.pause()
+            guard let strongSelf = self else { return }
+            strongSelf.pause()
             let feedback = UIImpactFeedbackGenerator(style: .medium)
             feedback.impactOccurred()
-            self.sleepFiredMessage = self.sleepTimer.lastFiredDescription
+            strongSelf.sleepFiredMessage = strongSelf.sleepTimer.lastFiredDescription
         }
     }
 

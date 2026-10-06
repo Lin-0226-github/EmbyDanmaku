@@ -212,6 +212,10 @@ Feather（开源）、Ksign、Scarlet 等工具可以直接在手机上给 IPA �
 代码有更新 → 重跑一次 **Build iOS IPA** → Releases 下载新 IPA → TrollStore 里再装一次
 （覆盖安装，播放进度、弹幕绑定、设置等数据都会保留）。
 
+> 提示：换新版本的文件时，建议**删掉手机上整个 EmbyDanmaku 文件夹、用新 zip 整个重新解压**，
+> 只替换单个文件容易漏（iOS「文件」App 里多层文件夹很容易点错层）。
+> v10 起脚本上传后会自动把仓库和手机逐文件比对 SHA，发现不一致会列出来并拒绝触发构建。
+
 ### 方案 C：有电脑时（可选）
 
 - Mac + Xcode 15+：双击 `EmbyDanmaku.xcodeproj`，配置签名后 ⌘R 跑真机
@@ -295,6 +299,31 @@ A：**不能**，这正是 iOS 的限制：网页上传点选的文件会被平�
 **Q：a-Shell 里提示 `git: command not found` / `Package git not found`？**
 A：不用装 git，直接跑 `python3 upload.py`（a-Shell 自带 Python，走 GitHub API 上传，
    连建仓库都自动）。这也是本项目的推荐方式。
+
+**Q：仓库里没有 `.github` 文件夹 / Actions 里没有工作流？**
+A：往 `.github` 目录写文件需要令牌有 **workflow** 权限，只勾 `repo` 会被 GitHub 拒收，
+   所以其他文件都传上去了、唯独工作流文件没传上。
+   解决（令牌字符串不变，不用重新生成）：Safari 打开 <https://github.com/settings/tokens>
+   → 点你的令牌 → 勾选 **workflow** → 拉到底点 **Update token** → 重跑 upload.py 即可补传。
+   实在不行就纯网页手动建：仓库页面点 **+** → Create new file → 路径填
+   `.github/workflows/build-ipa.yml`，内容从仓库里的 `github-workflow.txt` 复制 → Commit。
+
+**Q：重跑时满屏 `（HTTP 409）"sha" wasn't supplied` / `（HTTP 422）Invalid request`？**
+A：先别慌——**409 恰恰说明文件已经全部在仓库里了**（只有已存在的文件才会要求带 sha）。
+   Safari 打开 `github.com/你的用户名/EmbyDanmaku` 看一眼，文件都在的话就直接去 Actions 触发构建。
+   v6 版脚本会自动识别「仓库里已有相同内容」并跳过覆盖，不会再生这些报错；
+   上传完成后还会**自动触发云端构建**，不用再去 Actions 页面手动点。
+
+**Q：文件都传完了，最后报 `× 建树失败（HTTP 404）：Not Found`？**
+A：这是 Git Data API「建树」接口偶发/持续返回 404（仓库刚初始化时容易出现）。
+   v5 版脚本遇到它会先重试 3 次，仍失败就**自动切换逐文件上传**
+   （Contents API，每个文件一个提交，慢约 2 分钟但必成）。
+   看到开头打印 `upload.py v5` 即已包含此修复。
+
+**Q：上传时报 `409 Git Repository is empty`？**
+A：GitHub 的规定：一个提交都没有的全新仓库，不能直接用 Git 数据接口写文件。
+   v4 版脚本会先自动放一个「种子提交」（用 README.md 初始化分支）再继续上传，
+   看到开头打印 `upload.py v4` 即已包含此修复，重跑一遍即可，不用删仓库重建。
 
 **Q：粘贴令牌按回车之后一直没反应？**
 A：旧版本用了 Python 的「密码隐藏输入」（getpass），a-Shell 的终端不支持，会卡死在那里。

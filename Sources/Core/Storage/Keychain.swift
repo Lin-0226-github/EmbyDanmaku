@@ -29,7 +29,7 @@ struct Keychain {
     static func save(_ value: String, account: String) throws {
         guard let data = value.data(using: .utf8) else { throw KeychainError.invalidData }
         // 先删除旧值，避免 errSecDuplicateItem
-        try? delete(account: account)
+        _ = try? delete(account: account)
 
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,

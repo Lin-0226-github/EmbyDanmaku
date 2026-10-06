@@ -33,7 +33,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-VERSION = "v9"
+VERSION = "v10"
 
 API = os.environ.get("GH_API", "https://api.github.com").rstrip("/")
 REPO_NAME = os.environ.get("GH_REPO", "EmbyDanmaku")
@@ -339,6 +339,45 @@ def upload_via_contents(base, token, files):
     return True
 
 
+def verify_remote(base, token, files):
+    """上传后校验：把仓库 main 分支整棵文件树拉下来，逐个比对 blob sha。
+    返回不一致/缺失的文件列表（空列表 = 仓库与手机完全一致）。
+    这一步能发现「文件没传成功 / 手机上换了旧文件」的问题，避免用旧代码白构建一次。
+    """
+    print("[校验] 正在核对仓库内容与手机是否完全一致 ...", flush=True)
+    st, ref = request("GET", base + "/git/ref/heads/" + BRANCH, token)
+    if st != 200:
+        print("  ! 读不到 main 分支（HTTP %s），跳过校验" % st, flush=True)
+        return []
+    st, c = request("GET", base + "/git/commits/" + ref["object"]["sha"], token)
+    if st != 200:
+        print("  ! 读不到最新提交（HTTP %s），跳过校验" % st, flush=True)
+        return []
+    st, t = request("GET", base + "/git/trees/" + c["tree"]["sha"] + "?recursive=1", token)
+    if st != 200:
+        print("  ! 读不到文件树（HTTP %s），跳过校验" % st, flush=True)
+        return []
+    remote = {}
+    for e in t.get("tree", []):
+        if e.get("type") == "blob":
+            remote[e["path"]] = e["sha"]
+    bad = []
+    for rel, full in files:
+        with open(full, "rb") as f:
+            local = git_blob_sha(f.read())
+        if remote.get(rel) != local:
+            bad.append(rel)
+    if bad:
+        print("  ! 有 %d 个文件仓库里和手机上不一致：" % len(bad), flush=True)
+        for rel in bad[:10]:
+            print("      %s" % rel, flush=True)
+        if len(bad) > 10:
+            print("      ...等共 %d 个" % len(bad), flush=True)
+    else:
+        print("      全部 %d 个文件与仓库完全一致" % len(files), flush=True)
+    return bad
+
+
 def trigger_build(base, user, token):
     """上传完成后，直接用 API 触发 Actions 构建工作流（workflow_dispatch）"""
     print("[额外] 正在自动触发云端构建 ...", flush=True)
@@ -461,6 +500,14 @@ def main():
         if not upload_via_contents(base, token, files):
             print("× 仍有文件没传上去。把本脚本再跑一遍即可续传覆盖，不用清理任何东西")
             sys.exit(1)
+
+    # 上传后校验：仓库内容必须和手机完全一致，才触发云端构建
+    bad = verify_remote(base, token, files)
+    if bad:
+        print()
+        print("× 为避免用旧代码构建，这次不触发编译。")
+        print("  处理办法：确认手机文件夹里的文件是新包解压出来的，然后直接重跑本脚本。")
+        sys.exit(1)
 
     # 收尾：触发云端构建 + 删掉本地的 token.txt
     trigger_build(base, user, token)
