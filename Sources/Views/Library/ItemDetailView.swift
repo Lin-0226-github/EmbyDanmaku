@@ -499,14 +499,14 @@ struct ItemSourceSheet: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } }
             }
-            .task { await search() }
+            .task { await runSearch() }
         }
         .navigationViewStyle(.stack)
     }
 
     private func matchRow(_ m: Match) -> some View {
         Button {
-            Task { await pick(m) }
+            choose(m)
         } label: {
             HStack(spacing: 12) {
                 RemoteImageView(url: posterURL(m), placeholderSystemImage: "film")
@@ -556,7 +556,7 @@ struct ItemSourceSheet: View {
     }
 
     /// 并行搜索所有其他已登录服务器
-    private func search() async {
+    private func runSearch() async {
         searchTerm = item.SeriesName ?? item.Name ?? ""
         guard !searchTerm.isEmpty else {
             isSearching = false
@@ -596,6 +596,11 @@ struct ItemSourceSheet: View {
         }
         matches = found
         isSearching = false
+    }
+
+    /// 点击某个匹配结果（同步入口，内部转异步取剧集）
+    private func choose(_ m: Match) {
+        Task { await pick(m) }
     }
 
     private func pick(_ m: Match) async {

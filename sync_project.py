@@ -303,6 +303,7 @@ def main():
         out.append("\t\t\t\tIPHONEOS_DEPLOYMENT_TARGET = 15.0;")
         out.append("\t\t\t\tSDKROOT = iphoneos;")
         out.append('\t\t\t\tSWIFT_VERSION = 5.9;')
+        out.append('\t\t\t\tSWIFT_STRICT_CONCURRENCY = minimal;')
         if extra_before:
             out.extend(extra_before)
         if extra_after:
