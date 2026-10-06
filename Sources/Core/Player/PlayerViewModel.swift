@@ -700,7 +700,9 @@ extension AVPlayer {
 
 extension PlayerViewModel {
     /// 00:00 / 1:02:03 形式的时间文本
-    static func formatTime(_ seconds: Double) -> String {
+    /// nonisolated：纯函数、不碰任何实例状态，
+    /// 这样清单页等非 MainActor 上下文（如 ResumeRow 的计算属性）也能直接调用。
+    nonisolated static func formatTime(_ seconds: Double) -> String {
         guard seconds.isFinite, seconds >= 0 else { return "--:--" }
         let total = Int(seconds.rounded(.down))
         let h = total / 3600

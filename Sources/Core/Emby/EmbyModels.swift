@@ -77,7 +77,7 @@ struct EmbyNameList: Codable, Hashable {
     let names: [String]
 
     init(from decoder: Decoder) throws {
-        let c = decoder.singleValueContainer()
+        let c = try decoder.singleValueContainer()
         if let arr = try? c.decode([String].self) {
             names = arr
         } else if let arr = try? c.decode([EmbyNameOnly].self) {
@@ -88,7 +88,7 @@ struct EmbyNameList: Codable, Hashable {
     }
 
     func encode(to encoder: Encoder) throws {
-        var c = encoder.unkeyedContainer()
+        var c = try encoder.unkeyedContainer()
         for n in names { try c.encode(n) }
     }
 }
@@ -464,7 +464,7 @@ enum FlexibleScalar: Codable, Hashable {
     }
 
     func encode(to encoder: Encoder) throws {
-        var c = encoder.singleValueContainer()
+        var c = try encoder.singleValueContainer()
         if case .text(let s) = self { try c.encode(s) }
     }
 
