@@ -1,0 +1,53 @@
+# XcodeGen 配置：安装后执行 `xcodegen` 即可生成 EmbyDanmaku.xcodeproj
+#   brew install xcodegen     &&     cd EmbyDanmaku && xcodegen
+# 仓库中已附生成好的 Xcode 工程，可直接使用；修改源码增删文件后重新执行 xcodegen 即可。
+
+name: EmbyDanmaku
+
+options:
+  deploymentTarget:
+    iOS: "15.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+  xcodeVersion: "15.0"
+
+settings:
+  SWIFT_VERSION: "5.9"
+  ENABLE_PREVIEWS: YES
+  CLANG_ENABLE_MODULES: YES
+  SWIFT_EMIT_LOC_STRINGS: YES
+  ALWAYS_SEARCH_USER_PATHS: NO
+
+targets:
+  EmbyDanmaku:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      - path: Resources
+        buildPhase: resources
+        group: Resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.emby.danmaku
+        PRODUCT_NAME: EmbyDanmaku
+        INFOPLIST_FILE: Resources/Info.plist
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.9"
+        IPHONEOS_DEPLOYMENT_TARGET: "15.0"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: NO
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_TREAT_WARNINGS_AS_ERRORS: NO
+      configs:
+        debug:
+          SWIFT_OPTIMIZATION_LEVEL: "-Onone"
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "DEBUG"
+        release:
+          SWIFT_OPTIMIZATION_LEVEL: "-O"
+          SWIFT_COMPILATION_MODE: wholemodule
+    dependencies: []
+    scheme:
+      testTargets: []
+      gatherCoverageData: false
