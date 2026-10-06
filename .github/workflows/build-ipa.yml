@@ -206,7 +206,7 @@ jobs:
           gh release delete latest-ipa --yes --cleanup-tag 2>/dev/null || true
           gh release create latest-ipa \
             --prerelease \
-            --title "弹幕影院 · 最新构建" \
+            --title "Lplayers · 最新构建" \
             --notes "$NOTES" \
             "$FILE"
           echo "已发布：$(gh release view latest-ipa --json url -q .url)"

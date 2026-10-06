@@ -152,8 +152,8 @@ struct ItemDetailView: View {
                 }
             }
 
-            if !shown.Genres.orEmpty.isEmpty {
-                chipsRow(shown.Genres.orEmpty, systemImage: "tag")
+            if let genres = shown.Genres?.names, !genres.isEmpty {
+                chipsRow(genres, systemImage: "tag")
             }
         }
         .padding(.horizontal, 16)
@@ -400,6 +400,3 @@ struct ItemDetailView: View {
     }
 }
 
-extension Optional where Wrapped == [String] {
-    var orEmpty: [String] { self ?? [] }
-}

@@ -2,11 +2,15 @@
 //  PlayerControls.swift
 //  EmbyDanmaku
 //
-//  播放器控制层：顶栏、底部控制条、进度条。
+//  播放器控制层（参考 EPlayerX / VidHub 布局）：
+//  顶栏：关闭 · 画面比例 · 弹幕开关 · 定时关闭 · 复制链接 ｜ 右侧当前时间
+//  中部：后退 10 秒 · 播放/暂停（缓冲时显示加载圈）· 前进 10 秒
+//  底部：剧集信息 + 标题 ｜ 右侧功能图标行 → 进度条 → 简介/演职表/选集/切换来源
 //
 
 import SwiftUI
 import AVFoundation
+import UIKit
 
 struct PlayerControls: View {
     @ObservedObject var vm: PlayerViewModel
@@ -17,15 +21,19 @@ struct PlayerControls: View {
     var onToggleDanmaku: () -> Void
     var onSendDanmaku: () -> Void
 
+    @State private var copied = false
+
     var body: some View {
         VStack(spacing: 0) {
             topBar
+            Spacer()
+            centerRow
             Spacer()
             bottomBar
         }
         .foregroundStyle(.white)
         .background {
-            LinearGradient(colors: [.black.opacity(0.7), .clear, .clear, .black.opacity(0.8)],
+            LinearGradient(colors: [.black.opacity(0.72), .clear, .clear, .black.opacity(0.85)],
                            startPoint: .top, endPoint: .bottom)
                 .allowsHitTesting(false)
         }
@@ -35,64 +43,97 @@ struct PlayerControls: View {
     // MARK: - 顶栏
 
     private var topBar: some View {
-        HStack(spacing: 12) {
-            Button(action: onDismiss) {
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 18, weight: .semibold))
-                    .frame(width: 40, height: 40)
-                    .background(.black.opacity(0.35), in: Circle())
+        HStack(spacing: 18) {
+            topIcon("xmark", action: onDismiss)
+            topIcon(vm.videoGravity == .resizeAspect ? "arrow.up.left.and.arrow.down.right" : "aspectratio.fill") {
+                vm.toggleGravity()
             }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(vm.item.SeriesName ?? vm.item.Name ?? "")
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
-                Text(subtitleLine)
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.7))
-                    .lineLimit(1)
+            topIcon(settings.danmakuEnabled ? "text.bubble.fill" : "text.bubble", action: onToggleDanmaku)
+            topIcon(vm.sleepActive ? "timer" : "moon.zzz", tint: vm.sleepActive ? .yellow : .white) {
+                onPanel(.sleep)
             }
-
-            Spacer()
-
-            Button(action: onToggleDanmaku) {
-                Image(systemName: settings.danmakuEnabled ? "text.bubble.fill" : "text.bubble")
-                    .font(.system(size: 16))
-                    .frame(width: 36, height: 36)
-                    .background(.black.opacity(0.35), in: Circle())
+            topIcon(copied ? "checkmark" : "doc.on.doc", tint: copied ? AppTheme.success : .white) {
+                copyLink()
             }
-
-            Button { onPanel(.sleep) } label: {
-                Image(systemName: vm.sleepActive ? "timer" : "moon.zzz")
-                    .font(.system(size: 16))
-                    .foregroundStyle(vm.sleepActive ? .yellow : .white)
-                    .frame(width: 36, height: 36)
-                    .background(.black.opacity(0.35), in: Circle())
-            }
-
-            Button { onPanel(.settings) } label: {
-                Image(systemName: "gearshape.fill")
-                    .font(.system(size: 16))
-                    .frame(width: 36, height: 36)
-                    .background(.black.opacity(0.35), in: Circle())
+            Spacer(minLength: 8)
+            TimelineView(.everyMinute) { ctx in
+                Text(Self.timeText(ctx.date))
+                    .font(.system(size: 13, weight: .medium).monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.9))
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.top, 8)
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
     }
 
-    private var subtitleLine: String {
-        var parts: [String] = []
-        if vm.item.isEpisode { parts.append(vm.item.displayTitle) }
-        if let q = vm.plan?.qualityLabel { parts.append(q) }
-        if let m = vm.plan.map({ PlaybackDecision.description(for: $0.method) }) { parts.append(m) }
-        return parts.joined(separator: " · ")
+    private func topIcon(_ name: String,
+                         tint: Color = .white,
+                         action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: name)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(tint)
+                .frame(width: 30, height: 30)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private static func timeText(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        return f.string(from: date)
+    }
+
+    private func copyLink() {
+        UIPasteboard.general.string = vm.plan?.url.absoluteString ?? ""
+        copied = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
+    }
+
+    // MARK: - 中部
+
+    private var centerRow: some View {
+        HStack(spacing: 64) {
+            Button {
+                Task { await vm.seek(to: max(0, vm.currentTime - 10)) }
+            } label: {
+                Image(systemName: "gobackward.10")
+                    .font(.system(size: 34, weight: .light))
+            }
+            .buttonStyle(.plain)
+
+            Group {
+                if vm.isBuffering {
+                    VStack(spacing: 4) {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                            .tint(.white)
+                            .scaleEffect(1.1)
+                    }
+                } else {
+                    Button { vm.togglePlay() } label: {
+                        Image(systemName: vm.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.system(size: 32, weight: .medium))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .frame(width: 44)
+
+            Button {
+                Task { await vm.seek(to: vm.currentTime + 10) }
+            } label: {
+                Image(systemName: "goforward.10")
+                    .font(.system(size: 34, weight: .light))
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     // MARK: - 底栏
 
     private var bottomBar: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 12) {
             // 定时关闭倒计时提示
             if vm.sleepActive {
                 HStack(spacing: 6) {
@@ -108,90 +149,107 @@ struct PlayerControls: View {
                 .foregroundStyle(.yellow)
             }
 
-            ScrubberView(value: Binding(get: { vm.currentTime },
-                                        set: { newValue in Task { await vm.seek(to: newValue) } }),
-                         duration: vm.duration,
-                         buffered: vm.loadedDuration)
-
-            HStack(spacing: 16) {
-                Text(PlayerViewModel.formatTime(vm.currentTime))
-                    .font(.caption.monospacedDigit())
-                    .frame(width: 52, alignment: .leading)
-                Spacer()
-                Text("-" + PlayerViewModel.formatTime(max(0, vm.duration - vm.currentTime)))
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.white.opacity(0.75))
-            }
-            .font(.caption)
-
-            HStack(alignment: .center, spacing: 22) {
-                if vm.playlist.count > 1 {
-                    Button { vm.playPrevious() } label: {
-                        Image(systemName: "backward.end.fill")
-                            .font(.system(size: 20))
-                    }
-                    .disabled(vm.previousItem() == nil)
+            // 标题行 + 功能图标
+            HStack(alignment: .bottom, spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(episodeLine)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.72))
+                        .lineLimit(1)
+                    Text(vm.item.SeriesName ?? vm.item.Name ?? "")
+                        .font(.system(size: 22, weight: .bold))
+                        .lineLimit(1)
                 }
-
-                Button { vm.togglePlay() } label: {
-                    Image(systemName: vm.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.system(size: 30))
-                }
-                .frame(width: 52)
-
-                if vm.playlist.count > 1 {
-                    Button { vm.playNext() } label: {
-                        Image(systemName: "forward.end.fill")
-                            .font(.system(size: 20))
-                    }
-                    .disabled(vm.nextItem() == nil)
-                }
-
-                Spacer()
-
-                Menu {
-                    ForEach([0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0], id: \.self) { r in
-                        Button {
-                            vm.setRate(Float(r))
-                        } label: {
-                            HStack {
-                                Text(String(format: "%.2gx", r))
-                                if abs(vm.playbackRate - Float(r)) < 0.01 { Image(systemName: "checkmark") }
-                            }
+                Spacer(minLength: 12)
+                HStack(spacing: 20) {
+                    if vm.playlist.count > 1 {
+                        Button { vm.playPrevious() } label: {
+                            Image(systemName: "backward.end.fill").font(.system(size: 17))
                         }
+                        .disabled(vm.previousItem() == nil)
+                        .foregroundStyle(vm.previousItem() == nil ? .white.opacity(0.3) : .white)
                     }
-                } label: {
-                    Text(vm.playbackRate == 1 ? "倍速" : String(format: "%.2gx", vm.playbackRate))
-                        .font(.subheadline.weight(.semibold))
-                        .frame(minWidth: 44)
-                }
-
-                if vm.playlist.count > 1 {
-                    Button { onPanel(.episodes) } label: {
-                        Image(systemName: "list.bullet")
-                            .font(.system(size: 18))
+                    if vm.playlist.count > 1 {
+                        Button { vm.playNext() } label: {
+                            Image(systemName: "forward.end.fill").font(.system(size: 17))
+                        }
+                        .disabled(vm.nextItem() == nil)
+                        .foregroundStyle(vm.nextItem() == nil ? .white.opacity(0.3) : .white)
                     }
-                }
-
-                Button { onPanel(.danmaku) } label: {
-                    Image(systemName: "ellipsis.message")
-                        .font(.system(size: 18))
-                }
-
-                Button(action: onSendDanmaku) {
-                    Image(systemName: "bubble.right")
-                        .font(.system(size: 18))
-                }
-
-                Button { vm.toggleGravity() } label: {
-                    Image(systemName: vm.videoGravity == .resizeAspect ? "aspectratio" : "arrow.up.left.and.arrow.down.right")
-                        .font(.system(size: 18))
+                    Button { onPanel(.settings) } label: {
+                        Image(systemName: "slider.horizontal.3").font(.system(size: 17))
+                    }
+                    Button { onPanel(.danmaku) } label: {
+                        Image(systemName: "ellipsis.message").font(.system(size: 17))
+                    }
+                    Button(action: onSendDanmaku) {
+                        Image(systemName: "bubble.right").font(.system(size: 17))
+                    }
+                    Button { onPanel(.settings) } label: {
+                        Image(systemName: "gearshape").font(.system(size: 17))
+                    }
                 }
             }
-            .padding(.bottom, 18)
+
+            // 进度条
+            HStack(spacing: 10) {
+                Text(PlayerViewModel.formatTime(vm.currentTime))
+                    .font(.system(size: 12).monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.85))
+                ScrubberView(value: Binding(get: { vm.currentTime },
+                                            set: { newValue in Task { await vm.seek(to: newValue) } }),
+                             duration: vm.duration,
+                             buffered: vm.loadedDuration)
+                Text(PlayerViewModel.formatTime(max(0, vm.duration)))
+                    .font(.system(size: 12).monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.85))
+            }
+
+            // 功能胶囊
+            HStack(spacing: 10) {
+                pill("简介", isActive: false) { onPanel(.info) }
+                pill("演职表", isActive: false) { onPanel(.info) }
+                if vm.playlist.count > 1 {
+                    pill("选集", isActive: false) { onPanel(.episodes) }
+                }
+                pill("切换来源", isActive: false) { onPanel(.source) }
+                Spacer(minLength: 0)
+            }
+            .padding(.bottom, 14)
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
+    }
+
+    private func pill(_ title: String, isActive: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.white.opacity(0.92))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .background(
+                    Capsule().stroke(.white.opacity(0.45), lineWidth: 1)
+                        .background(Capsule().fill(.black.opacity(0.25)))
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var episodeLine: String {
+        if vm.item.isEpisode {
+            var parts: [String] = []
+            if let s = vm.item.ParentIndexNumber, let e = vm.item.IndexNumber {
+                parts.append("S\(s),E\(e)")
+            }
+            if let s = vm.item.ParentIndexNumber { parts.append("季 \(s)") }
+            if let n = vm.item.Name, !n.isEmpty { parts.append(n) }
+            return parts.joined(separator: " - ")
+        }
+        var parts: [String] = []
+        if let q = vm.plan?.qualityLabel { parts.append(q) }
+        if let m = vm.plan.map({ PlaybackDecision.description(for: $0.method) }) { parts.append(m) }
+        return parts.joined(separator: " · ")
     }
 }
 

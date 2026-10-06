@@ -97,7 +97,7 @@ struct PlayerView: View {
     let startSeconds: Double?
 
     enum PlayerPanel: String, Identifiable {
-        case settings, episodes, danmaku, sleep
+        case settings, episodes, danmaku, sleep, info, source
         var id: String { rawValue }
     }
 
@@ -407,6 +407,8 @@ struct PlayerView: View {
         case .episodes: EpisodePanel(vm: vm)
         case .danmaku: DanmakuPanel(vm: vm)
         case .sleep: SleepTimerPanel(timer: vm.sleepTimer)
+        case .info: ItemInfoPanel(client: client, item: vm.item)
+        case .source: SourcePanel(vm: vm)
         }
     }
 }

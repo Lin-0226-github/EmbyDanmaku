@@ -70,6 +70,33 @@ struct PublicSystemInfo: Codable {
 
 // MARK: - 媒体条目
 
+/// Emby 的 Studios 返回的是 [{Name, Id}] 对象数组，而 Genres / Tags 是字符串数组。
+/// 不同服务器版本偶有差异，这里做成「字符串数组」和「对象数组」都能解的宽容类型，
+/// 避免详情页因为一个字段格式不对就整页打不开。
+struct EmbyNameList: Codable, Hashable {
+    let names: [String]
+
+    init(from decoder: Decoder) throws {
+        let c = decoder.singleValueContainer()
+        if let arr = try? c.decode([String].self) {
+            names = arr
+        } else if let arr = try? c.decode([EmbyNameOnly].self) {
+            names = arr.compactMap { $0.Name }
+        } else {
+            names = []
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.unkeyedContainer()
+        for n in names { try c.encode(n) }
+    }
+}
+
+struct EmbyNameOnly: Codable, Hashable {
+    let Name: String?
+}
+
 /// Emby 的 BaseItemDto 的子集，覆盖影音库浏览所需字段
 struct BaseItem: Codable, Identifiable, Hashable {
     var id: String { Id }
@@ -94,9 +121,9 @@ struct BaseItem: Codable, Identifiable, Hashable {
     let CriticRating: Double?
     let OfficialRating: String?
     let RunTimeTicks: Int64?
-    let Genres: [String]?
-    let Studios: [String]?
-    let Tags: [String]?
+    let Genres: EmbyNameList?
+    let Studios: EmbyNameList?
+    let Tags: EmbyNameList?
     let People: [EmbyPerson]?
     let ImageTags: [String: String]?
     let BackdropImageTags: [String]?

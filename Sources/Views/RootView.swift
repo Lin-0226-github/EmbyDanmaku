@@ -2,7 +2,7 @@
 //  RootView.swift
 //  EmbyDanmaku
 //
-//  应用根视图：根据登录状态切换服务器列表与主界面（底部四栏）。
+//  应用根视图：根据登录状态切换服务器列表与主界面（底部五栏）。
 //
 
 import SwiftUI
@@ -30,13 +30,15 @@ struct MainTabView: View {
     var body: some View {
         TabView {
             HomeView()
-                .tabItem { Label("媒体库", systemImage: "square.grid.2x2.fill") }
+                .tabItem { Label("首页", systemImage: "house.fill") }
             PlaylistHubView()
                 .tabItem { Label("清单", systemImage: "list.bullet") }
+            LibraryTabView()
+                .tabItem { Label("媒体库", systemImage: "square.grid.2x2.fill") }
+            MineView()
+                .tabItem { Label("我的", systemImage: "person.fill") }
             SearchView()
                 .tabItem { Label("搜索", systemImage: "magnifyingglass") }
-            SettingsView()
-                .tabItem { Label("设置", systemImage: "gearshape.fill") }
         }
         .accentColor(AppTheme.accent)
     }

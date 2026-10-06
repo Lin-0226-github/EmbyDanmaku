@@ -34,6 +34,7 @@
 		75587C556840C7B652935850 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6AD60AB4F62583AF5F6356A /* Theme.swift */; };
 		2345BD98F4F057A922DBB161 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C9CE7F2C16F22A7EE7D9C60 /* HomeView.swift */; };
 		11147CBCB6A3030E9FBE6050 /* ItemDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52B8B98E8F507B5D86C939C9 /* ItemDetailView.swift */; };
+		0E510FD13CFE15E1F48E6DEC /* LibraryGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32D1A3970DF0448C9C52170E /* LibraryGridView.swift */; };
 		E89FBF149B098893BB2C4820 /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1228191681120BB24268D9C7 /* SearchView.swift */; };
 		FBB12DDD7E08BC39342525E7 /* PlayerControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA1ADD2C24DEDE7E9AB2F90 /* PlayerControls.swift */; };
 		3FA9203049664C962319A066 /* PlayerPanels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6616C83BB29CB43BA59C722A /* PlayerPanels.swift */; };
@@ -42,6 +43,7 @@
 		82E6B5EE7B5BF486EA225A6B /* PlaylistHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4802D88266A18316353911F7 /* PlaylistHubView.swift */; };
 		37A346C3D362BE92F113F0B9 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BA60A48DD953AF50B37E9A9 /* LoginView.swift */; };
 		E3F911E4CD0EE692CB0333F5 /* ServerListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F29B125986145B4AA37C7F5F /* ServerListView.swift */; };
+		0E27F37AF3C65D0253C20E28 /* MineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33992862CF60B3672B5F7501 /* MineView.swift */; };
 		CF40A3082DF014ED902A3F73 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 132A529A4F707F0D1D75D2E6 /* SettingsView.swift */; };
 /* End PBXBuildFile section */
 
@@ -73,6 +75,7 @@
 		E6AD60AB4F62583AF5F6356A /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Theme.swift"; sourceTree = "<group>"; };
 		3C9CE7F2C16F22A7EE7D9C60 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HomeView.swift"; sourceTree = "<group>"; };
 		52B8B98E8F507B5D86C939C9 /* ItemDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ItemDetailView.swift"; sourceTree = "<group>"; };
+		32D1A3970DF0448C9C52170E /* LibraryGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryGridView.swift"; sourceTree = "<group>"; };
 		1228191681120BB24268D9C7 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SearchView.swift"; sourceTree = "<group>"; };
 		EAA1ADD2C24DEDE7E9AB2F90 /* PlayerControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlayerControls.swift"; sourceTree = "<group>"; };
 		6616C83BB29CB43BA59C722A /* PlayerPanels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlayerPanels.swift"; sourceTree = "<group>"; };
@@ -81,6 +84,7 @@
 		4802D88266A18316353911F7 /* PlaylistHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaylistHubView.swift"; sourceTree = "<group>"; };
 		9BA60A48DD953AF50B37E9A9 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LoginView.swift"; sourceTree = "<group>"; };
 		F29B125986145B4AA37C7F5F /* ServerListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ServerListView.swift"; sourceTree = "<group>"; };
+		33992862CF60B3672B5F7501 /* MineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MineView.swift"; sourceTree = "<group>"; };
 		132A529A4F707F0D1D75D2E6 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView.swift"; sourceTree = "<group>"; };
 		F6C49E4434E4AB56F89617A9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		0DB7571B8334F5E7680A9B20 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -210,6 +214,7 @@
 			children = (
 				3C9CE7F2C16F22A7EE7D9C60 /* HomeView.swift */,
 				52B8B98E8F507B5D86C939C9 /* ItemDetailView.swift */,
+				32D1A3970DF0448C9C52170E /* LibraryGridView.swift */,
 				1228191681120BB24268D9C7 /* SearchView.swift */,
 			);
 			path = "Library";
@@ -246,6 +251,7 @@
 		54647073D9B85866F7A8EA80 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				33992862CF60B3672B5F7501 /* MineView.swift */,
 				132A529A4F707F0D1D75D2E6 /* SettingsView.swift */,
 			);
 			path = "Settings";
@@ -373,6 +379,7 @@
 				75587C556840C7B652935850 /* Theme.swift in Sources */,
 				2345BD98F4F057A922DBB161 /* HomeView.swift in Sources */,
 				11147CBCB6A3030E9FBE6050 /* ItemDetailView.swift in Sources */,
+				0E510FD13CFE15E1F48E6DEC /* LibraryGridView.swift in Sources */,
 				E89FBF149B098893BB2C4820 /* SearchView.swift in Sources */,
 				FBB12DDD7E08BC39342525E7 /* PlayerControls.swift in Sources */,
 				3FA9203049664C962319A066 /* PlayerPanels.swift in Sources */,
@@ -381,6 +388,7 @@
 				82E6B5EE7B5BF486EA225A6B /* PlaylistHubView.swift in Sources */,
 				37A346C3D362BE92F113F0B9 /* LoginView.swift in Sources */,
 				E3F911E4CD0EE692CB0333F5 /* ServerListView.swift in Sources */,
+				0E27F37AF3C65D0253C20E28 /* MineView.swift in Sources */,
 				CF40A3082DF014ED902A3F73 /* SettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

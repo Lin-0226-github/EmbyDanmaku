@@ -15,6 +15,13 @@ struct SettingsView: View {
     @State private var showLogoutConfirm = false
     @State private var showClearHistory = false
 
+    /// 版本号从 Info.plist 读取，随每次调整自动更新显示
+    private static var versionText: String {
+        let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        let b = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+        return "\(v) (\(b))"
+    }
+
     private let bitrateOptions: [(String, Int)] = [
         ("自动（60 Mbps）", 60_000_000),
         ("40 Mbps", 40_000_000),
@@ -96,7 +103,8 @@ struct SettingsView: View {
                 }
 
                 Section("关于") {
-                    LabeledRow("版本") { Text("1.0.0").foregroundStyle(.secondary) }
+                    LabeledRow("名称") { Text("Lplayers").foregroundStyle(.secondary) }
+                    LabeledRow("版本") { Text(Self.versionText).foregroundStyle(.secondary) }
                     Link("弹弹play 开放弹幕网络", destination: URL(string: "https://www.dandanplay.com/open.html")!)
                 }
             }

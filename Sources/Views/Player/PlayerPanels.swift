@@ -378,6 +378,175 @@ struct BangumiEpisodeList: View {
     }
 }
 
+// MARK: - 简介 / 演职表
+
+struct ItemInfoPanel: View {
+    let client: EmbyClient
+    let item: BaseItem
+
+    @State private var detail: BaseItem?
+    @State private var isLoading = true
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationView {
+            ZStack {
+                AppTheme.background.ignoresSafeArea()
+                if isLoading {
+                    ProgressView()
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 18) {
+                            if let d = detail, let ov = d.Overview, !ov.isEmpty {
+                                SectionHeader(title: "简介", systemImage: "text.alignleft")
+                                Text(ov)
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(AppTheme.textSecondary)
+                                    .lineSpacing(4)
+                                    .padding(.horizontal, 16)
+                            }
+                            if let people = detail?.People, !people.isEmpty {
+                                SectionHeader(title: "演职表", systemImage: "person.2.fill")
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 14) {
+                                        ForEach(people.prefix(30)) { p in
+                                            VStack(spacing: 5) {
+                                                if let tag = p.PrimaryImageTag, let pid = p.Id,
+                                                   let url = client.imageURL(itemId: pid, tag: tag, maxWidth: 200) {
+                                                    RemoteImageView(url: url, placeholderSystemImage: "person.circle")
+                                                        .frame(width: 58, height: 58)
+                                                        .clipShape(Circle())
+                                                } else {
+                                                    Image(systemName: "person.circle.fill")
+                                                        .font(.system(size: 50))
+                                                        .foregroundStyle(AppTheme.textTertiary)
+                                                        .frame(width: 58, height: 58)
+                                                }
+                                                Text(p.Name ?? "")
+                                                    .font(.system(size: 11))
+                                                    .foregroundStyle(AppTheme.textPrimary)
+                                                    .lineLimit(1)
+                                                    .frame(width: 66)
+                                                Text(p.Role ?? "")
+                                                    .font(.system(size: 10))
+                                                    .foregroundStyle(AppTheme.textTertiary)
+                                                    .lineLimit(1)
+                                                    .frame(width: 66)
+                                            }
+                                        }
+                                    }
+                                    .padding(.horizontal, 16)
+                                }
+                            }
+                            Color.clear.frame(height: 20)
+                        }
+                        .padding(.top, 14)
+                    }
+                }
+            }
+            .navigationTitle(item.Name ?? "详情")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } }
+            }
+            .task { await load() }
+        }
+        .navigationViewStyle(.stack)
+    }
+
+    private func load() async {
+        isLoading = true
+        defer { isLoading = false }
+        detail = try? await client.fetchItem(item.id)
+    }
+}
+
+// MARK: - 切换来源（直连 / 转码 / 码率 / 倍速）
+
+struct SourcePanel: View {
+    @ObservedObject var vm: PlayerViewModel
+    @EnvironmentObject private var settings: AppSettings
+    @Environment(\.dismiss) private var dismiss
+
+    private let bitrateOptions: [(String, Int)] = [
+        ("自动（60 Mbps）", 60_000_000),
+        ("40 Mbps", 40_000_000),
+        ("20 Mbps", 20_000_000),
+        ("10 Mbps", 10_000_000),
+        ("4 Mbps", 4_000_000),
+        ("2 Mbps", 2_000_000)
+    ]
+
+    var body: some View {
+        NavigationView {
+            Form {
+                Section("当前播放") {
+                    LabeledRow("标题") { Text(vm.item.Name ?? "").foregroundStyle(.secondary).lineLimit(1) }
+                    LabeledRow("方式") {
+                        Text(vm.plan.map { PlaybackDecision.description(for: $0.method) } ?? "准备中…")
+                            .foregroundStyle(.secondary)
+                    }
+                    if let q = vm.plan?.qualityLabel {
+                        LabeledRow("画质") { Text(q).foregroundStyle(.secondary) }
+                    }
+                }
+
+                Section("倍速") {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach([0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0], id: \.self) { r in
+                                Button {
+                                    vm.setRate(Float(r))
+                                } label: {
+                                    Text(String(format: "%.2gx", r))
+                                        .font(.subheadline.weight(.medium))
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 6)
+                                        .background(abs(vm.playbackRate - Float(r)) < 0.01 ? Color.accentColor : Color(.secondarySystemBackground),
+                                                    in: Capsule())
+                                        .foregroundStyle(abs(vm.playbackRate - Float(r)) < 0.01 ? .white : .primary)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+
+                Section {
+                    Toggle("优先直连播放（关闭则强制服务器转码）", isOn: $settings.preferDirectPlay)
+                        .onChange(of: settings.preferDirectPlay) { _ in
+                            Task { await vm.load() }
+                        }
+                    Picker("转码码率上限", selection: $settings.maxBitrate) {
+                        ForEach(bitrateOptions, id: \.1) { t in
+                            Text(t.0).tag(t.1)
+                        }
+                    }
+                } header: {
+                    Text("切换来源")
+                } footer: {
+                    Text("改完会立刻按新的来源重新取流，当前进度会保留。")
+                }
+
+                Section("画面") {
+                    Picker("画面比例", selection: Binding(get: { vm.videoGravity },
+                                                          set: { vm.videoGravity = $0 })) {
+                        Text("适应").tag(AVLayerVideoGravity.resizeAspect)
+                        Text("填充").tag(AVLayerVideoGravity.resizeAspectFill)
+                    }
+                    .pickerStyle(.segmented)
+                }
+            }
+            .navigationTitle("切换来源")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } }
+            }
+        }
+        .navigationViewStyle(.stack)
+    }
+}
+
 // MARK: - 定时关闭
 
 struct SleepTimerPanel: View {
