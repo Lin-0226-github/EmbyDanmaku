@@ -162,6 +162,42 @@ final class AppState: ObservableObject {
         client?.clearCredentials()
         client = nil
         currentServer = nil
+        currentUserName = nil
         isLoggedIn = false
+    }
+
+    // MARK: - 多服务器支持
+
+    /// 该服务器是否有已保存的登录凭据（可免登录构建客户端）
+    func hasCredentials(_ server: EmbyServer) -> Bool {
+        guard let uid = server.lastUserId, !uid.isEmpty else { return false }
+        guard let token = try? Keychain.read(account: Keychain.tokenKey(serverURL: server.url, userId: uid)) else { return false }
+        return !token.isEmpty
+    }
+
+    /// 用服务器已保存的令牌构建客户端（不改变当前会话）。
+    /// 用于：搜索全部服务器、片源切换、媒体库按服务器浏览。
+    func client(for server: EmbyServer) -> EmbyClient? {
+        guard let uid = server.lastUserId, !uid.isEmpty,
+              let token = try? Keychain.read(account: Keychain.tokenKey(serverURL: server.url, userId: uid)),
+              !token.isEmpty else { return nil }
+        let c = EmbyClient(serverURL: server.url)
+        c.setCredentials(token: token, userId: uid, serverId: nil, userName: server.lastUsername)
+        return c
+    }
+
+    /// 免登出地切换当前服务器（首页快捷切换用）。
+    /// 有凭据直接切；没有凭据则回登录页让用户重新登录。
+    func switchTo(_ server: EmbyServer) async {
+        if server.id == currentServer?.id { return }
+        if let c = client(for: server) {
+            client = c
+            currentServer = server
+            currentUserName = server.lastUsername
+            isLoggedIn = true
+        } else {
+            // 没有可用凭据，回到服务器列表让用户登录该服务器
+            switchServer()
+        }
     }
 }

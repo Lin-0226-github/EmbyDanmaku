@@ -43,16 +43,31 @@ struct PlayerControls: View {
     // MARK: - 顶栏
 
     private var topBar: some View {
-        HStack(spacing: 18) {
-            topIcon("xmark", action: onDismiss)
-            topIcon(vm.videoGravity == .resizeAspect ? "arrow.up.left.and.arrow.down.right" : "aspectratio.fill") {
+        HStack(spacing: 16) {
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundStyle(.white)
+                    .frame(width: 30, height: 34)
+            }
+            .buttonStyle(.plain)
+
+            topButton(vm.videoGravity == .resizeAspect
+                      ? "arrow.up.left.and.arrow.down.right" : "aspectratio.fill",
+                      "画面") {
                 vm.toggleGravity()
             }
-            topIcon(settings.danmakuEnabled ? "text.bubble.fill" : "text.bubble", action: onToggleDanmaku)
-            topIcon(vm.sleepActive ? "timer" : "moon.zzz", tint: vm.sleepActive ? .yellow : .white) {
+            topButton(settings.danmakuEnabled ? "text.bubble.fill" : "text.bubble",
+                      "弹幕",
+                      tint: settings.danmakuEnabled ? AppTheme.accent : .white) {
+                onToggleDanmaku()
+            }
+            topButton("moon.zzz", "定时", tint: vm.sleepActive ? .yellow : .white) {
                 onPanel(.sleep)
             }
-            topIcon(copied ? "checkmark" : "doc.on.doc", tint: copied ? AppTheme.success : .white) {
+            topButton(copied ? "checkmark" : "doc.on.doc",
+                      copied ? "已复制" : "链接",
+                      tint: copied ? AppTheme.success : .white) {
                 copyLink()
             }
             Spacer(minLength: 8)
@@ -66,14 +81,20 @@ struct PlayerControls: View {
         .padding(.top, 10)
     }
 
-    private func topIcon(_ name: String,
-                         tint: Color = .white,
-                         action: @escaping () -> Void) -> some View {
+    /// 顶栏按钮：图标 + 小字标签，让每个按钮的功能一目了然
+    private func topButton(_ systemImage: String,
+                           _ label: String,
+                           tint: Color = .white,
+                           action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: name)
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(tint)
-                .frame(width: 30, height: 30)
+            VStack(spacing: 3) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 16, weight: .medium))
+                Text(label)
+                    .font(.system(size: 9, weight: .medium))
+            }
+            .foregroundStyle(tint)
+            .frame(minWidth: 32)
         }
         .buttonStyle(.plain)
     }
@@ -161,32 +182,32 @@ struct PlayerControls: View {
                         .lineLimit(1)
                 }
                 Spacer(minLength: 12)
-                HStack(spacing: 20) {
+                HStack(spacing: 16) {
                     if vm.playlist.count > 1 {
-                        Button { vm.playPrevious() } label: {
-                            Image(systemName: "backward.end.fill").font(.system(size: 17))
+                        bottomButton("backward.end.fill", "上一集",
+                                     tint: vm.previousItem() == nil ? .white.opacity(0.3) : .white) {
+                            vm.playPrevious()
                         }
                         .disabled(vm.previousItem() == nil)
-                        .foregroundStyle(vm.previousItem() == nil ? .white.opacity(0.3) : .white)
                     }
                     if vm.playlist.count > 1 {
-                        Button { vm.playNext() } label: {
-                            Image(systemName: "forward.end.fill").font(.system(size: 17))
+                        bottomButton("forward.end.fill", "下一集",
+                                     tint: vm.nextItem() == nil ? .white.opacity(0.3) : .white) {
+                            vm.playNext()
                         }
                         .disabled(vm.nextItem() == nil)
-                        .foregroundStyle(vm.nextItem() == nil ? .white.opacity(0.3) : .white)
                     }
-                    Button { onPanel(.settings) } label: {
-                        Image(systemName: "slider.horizontal.3").font(.system(size: 17))
+                    bottomButton("speedometer", rateLabel) {
+                        cycleRate()
                     }
-                    Button { onPanel(.danmaku) } label: {
-                        Image(systemName: "ellipsis.message").font(.system(size: 17))
+                    bottomButton("ellipsis.message", "弹幕") {
+                        onPanel(.danmaku)
                     }
-                    Button(action: onSendDanmaku) {
-                        Image(systemName: "bubble.right").font(.system(size: 17))
+                    bottomButton("bubble.right", "发弹幕") {
+                        onSendDanmaku()
                     }
-                    Button { onPanel(.settings) } label: {
-                        Image(systemName: "gearshape").font(.system(size: 17))
+                    bottomButton("slider.horizontal.3", "设置") {
+                        onPanel(.settings)
                     }
                 }
             }
@@ -234,6 +255,43 @@ struct PlayerControls: View {
                 )
         }
         .buttonStyle(.plain)
+    }
+
+    /// 底栏按钮：图标 + 小字标签
+    private func bottomButton(_ systemImage: String,
+                              _ label: String,
+                              tint: Color = .white,
+                              action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 3) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 17))
+                Text(label)
+                    .font(.system(size: 9, weight: .medium))
+            }
+            .foregroundStyle(tint)
+            .frame(minWidth: 30)
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: 倍速快捷循环
+
+    private let cycleRates: [Float] = [1.0, 1.25, 1.5, 2.0, 0.5, 0.75]
+
+    private func cycleRate() {
+        let cur = vm.playbackRate
+        if let idx = cycleRates.firstIndex(where: { abs($0 - cur) < 0.01 }) {
+            vm.setRate(cycleRates[(idx + 1) % cycleRates.count])
+        } else {
+            vm.setRate(1.0)
+        }
+    }
+
+    private var rateLabel: String {
+        let r = vm.playbackRate
+        if abs(r - 1.0) < 0.01 { return "倍速" }
+        return String(format: "%.2gx", r)
     }
 
     private var episodeLine: String {

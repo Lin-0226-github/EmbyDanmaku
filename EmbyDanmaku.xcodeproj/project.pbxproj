@@ -41,6 +41,7 @@
 		45B8D17ED6E5C8F6E383F75A /* PlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87DDCF0833E8211E7B41262D /* PlayerView.swift */; };
 		C14408EECFE006AA4DAE3D17 /* PlaylistDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4463FC3F708DDEC32337D257 /* PlaylistDetailView.swift */; };
 		82E6B5EE7B5BF486EA225A6B /* PlaylistHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4802D88266A18316353911F7 /* PlaylistHubView.swift */; };
+		0CF4AD8CA3D166BB2CA97B6D /* LibraryServersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4EB7E340EA7F19B267548C0 /* LibraryServersView.swift */; };
 		37A346C3D362BE92F113F0B9 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BA60A48DD953AF50B37E9A9 /* LoginView.swift */; };
 		E3F911E4CD0EE692CB0333F5 /* ServerListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F29B125986145B4AA37C7F5F /* ServerListView.swift */; };
 		0E27F37AF3C65D0253C20E28 /* MineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33992862CF60B3672B5F7501 /* MineView.swift */; };
@@ -82,6 +83,7 @@
 		87DDCF0833E8211E7B41262D /* PlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlayerView.swift"; sourceTree = "<group>"; };
 		4463FC3F708DDEC32337D257 /* PlaylistDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaylistDetailView.swift"; sourceTree = "<group>"; };
 		4802D88266A18316353911F7 /* PlaylistHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaylistHubView.swift"; sourceTree = "<group>"; };
+		B4EB7E340EA7F19B267548C0 /* LibraryServersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryServersView.swift"; sourceTree = "<group>"; };
 		9BA60A48DD953AF50B37E9A9 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LoginView.swift"; sourceTree = "<group>"; };
 		F29B125986145B4AA37C7F5F /* ServerListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ServerListView.swift"; sourceTree = "<group>"; };
 		33992862CF60B3672B5F7501 /* MineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MineView.swift"; sourceTree = "<group>"; };
@@ -242,6 +244,7 @@
 		61BDF4D7937EA8319A16E57C /* Server */ = {
 			isa = PBXGroup;
 			children = (
+				B4EB7E340EA7F19B267548C0 /* LibraryServersView.swift */,
 				9BA60A48DD953AF50B37E9A9 /* LoginView.swift */,
 				F29B125986145B4AA37C7F5F /* ServerListView.swift */,
 			);
@@ -386,6 +389,7 @@
 				45B8D17ED6E5C8F6E383F75A /* PlayerView.swift in Sources */,
 				C14408EECFE006AA4DAE3D17 /* PlaylistDetailView.swift in Sources */,
 				82E6B5EE7B5BF486EA225A6B /* PlaylistHubView.swift in Sources */,
+				0CF4AD8CA3D166BB2CA97B6D /* LibraryServersView.swift in Sources */,
 				37A346C3D362BE92F113F0B9 /* LoginView.swift in Sources */,
 				E3F911E4CD0EE692CB0333F5 /* ServerListView.swift in Sources */,
 				0E27F37AF3C65D0253C20E28 /* MineView.swift in Sources */,

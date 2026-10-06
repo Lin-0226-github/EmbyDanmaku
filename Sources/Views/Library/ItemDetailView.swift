@@ -11,6 +11,9 @@ struct ItemDetailView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject private var store = PlaylistStore.shared
     let item: BaseItem
+    /// 指定用哪个服务器的客户端浏览/播放（跨服务器搜索结果、片源切换进入时传入）
+    var clientOverride: EmbyClient? = nil
+    var serverNameOverride: String? = nil
 
     @State private var detail: BaseItem?
     @State private var seasons: [BaseItem] = []
@@ -20,16 +23,19 @@ struct ItemDetailView: View {
     @State private var errorMessage: String?
     @State private var playTarget: PlayTarget?
     @State private var showAddToPlaylist = false
+    @State private var showSourceSheet = false
 
     struct PlayTarget: Identifiable {
         var id: String { item.id + String(startSeconds ?? 0) }
         let item: BaseItem
         let playlist: [BaseItem]
         let startSeconds: Double?
+        var clientOverride: EmbyClient? = nil
     }
 
     private var shown: BaseItem { detail ?? item }
-    private var client: EmbyClient? { appState.client }
+    private var client: EmbyClient? { clientOverride ?? appState.client }
+    private var serverName: String { serverNameOverride ?? appState.currentServer?.name ?? "" }
 
     var body: some View {
         ScrollView {
@@ -54,8 +60,14 @@ struct ItemDetailView: View {
             AddToPlaylistSheet(item: shown, episodes: shown.isSeries ? episodes : [])
         }
         .fullScreenCover(item: $playTarget) { target in
-            if let c = client {
+            if let c = target.clientOverride ?? client {
                 PlayerView(client: c, item: target.item, playlist: target.playlist, startSeconds: target.startSeconds)
+            }
+        }
+        .sheet(isPresented: $showSourceSheet) {
+            ItemSourceSheet(item: shown) { target in
+                showSourceSheet = false
+                playTarget = target
             }
         }
         .alert("出错了", isPresented: Binding(get: { errorMessage != nil },
@@ -154,6 +166,36 @@ struct ItemDetailView: View {
 
             if let genres = shown.Genres?.names, !genres.isEmpty {
                 chipsRow(genres, systemImage: "tag")
+            }
+
+            // 片源：多服务器时可在其他服务器上找同名片并切换播放
+            if appState.servers.count > 1 {
+                Button { showSourceSheet = true } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.left.arrow.right.circle")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(AppTheme.accent)
+                        Text("片源 · \(serverName)")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(AppTheme.textPrimary)
+                            .lineLimit(1)
+                        Spacer(minLength: 6)
+                        Text("切换")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(AppTheme.accent)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(AppTheme.card)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(AppTheme.hairline, lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 16)
@@ -279,7 +321,7 @@ struct ItemDetailView: View {
                     ForEach(people.prefix(24)) { p in
                         VStack(spacing: 4) {
                             if let tag = p.PrimaryImageTag, let pid = p.Id,
-                               let url = appState.client?.imageURL(itemId: pid, tag: tag, maxWidth: 200) {
+                               let url = client?.imageURL(itemId: pid, tag: tag, maxWidth: 200) {
                                 RemoteImageView(url: url, placeholderSystemImage: "person.circle")
                                     .frame(width: 62, height: 62)
                                     .clipShape(Circle())
@@ -339,13 +381,15 @@ struct ItemDetailView: View {
         if shown.isSeries, let first = episodes.first {
             playEpisode(first)
         } else {
-            playTarget = PlayTarget(item: shown, playlist: [shown], startSeconds: shown.resumeSeconds)
+            playTarget = PlayTarget(item: shown, playlist: [shown], startSeconds: shown.resumeSeconds,
+                                    clientOverride: client)
         }
     }
 
     private func playEpisode(_ ep: BaseItem) {
         playTarget = PlayTarget(item: ep, playlist: episodes.isEmpty ? [ep] : episodes,
-                                startSeconds: ep.resumeSeconds > 5 ? ep.resumeSeconds : nil)
+                                startSeconds: ep.resumeSeconds > 5 ? ep.resumeSeconds : nil,
+                                clientOverride: client)
     }
 
     private func toggleWatched() async {
@@ -397,6 +441,179 @@ struct ItemDetailView: View {
             return client.imageURL(itemId: sid, imageType: "Primary", tag: stag, maxWidth: 500)
         }
         return nil
+    }
+}
+
+// MARK: - 切换片源（在其他服务器上找同名片）
+
+struct ItemSourceSheet: View {
+    @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+
+    let item: BaseItem
+    var onPick: (ItemDetailView.PlayTarget) -> Void
+
+    struct Match: Identifiable {
+        let id: String
+        let server: EmbyServer
+        let client: EmbyClient
+        let item: BaseItem
+    }
+
+    @State private var matches: [Match] = []
+    @State private var isSearching = true
+    @State private var searchTerm = ""
+
+    var body: some View {
+        NavigationView {
+            ZStack {
+                AppTheme.background.ignoresSafeArea()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("在其他已登录的服务器上搜索「\(searchTerm)」，点击即可切换到该服务器播放。")
+                            .font(.system(size: 12))
+                            .foregroundStyle(AppTheme.textTertiary)
+
+                        if isSearching {
+                            HStack {
+                                Spacer()
+                                ProgressView("正在搜索其他服务器…")
+                                Spacer()
+                            }
+                            .padding(.vertical, 40)
+                        } else if matches.isEmpty {
+                            EmptyStateView(systemImage: "arrow.left.arrow.right.circle",
+                                           title: "其他服务器没有找到这部影片",
+                                           subtitle: "只有已登录（有保存凭据）的服务器会被搜索")
+                        } else {
+                            ForEach(matches) { m in
+                                matchRow(m)
+                            }
+                        }
+                    }
+                    .padding(16)
+                }
+            }
+            .navigationTitle("切换片源")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } }
+            }
+            .task { await search() }
+        }
+        .navigationViewStyle(.stack)
+    }
+
+    private func matchRow(_ m: Match) -> some View {
+        Button {
+            Task { await pick(m) }
+        } label: {
+            HStack(spacing: 12) {
+                RemoteImageView(url: posterURL(m), placeholderSystemImage: "film")
+                    .frame(width: 52, height: 74)
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(m.item.Name ?? "")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .lineLimit(1)
+                    HStack(spacing: 5) {
+                        Image(systemName: "server.rack")
+                            .font(.system(size: 10))
+                        Text(m.server.name)
+                            .font(.system(size: 12, weight: .medium))
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(AppTheme.accent)
+                    Text(m.item.isSeries ? "剧集 · 点击播放第一集" : "电影")
+                        .font(.system(size: 11))
+                        .foregroundStyle(AppTheme.textTertiary)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "play.circle")
+                    .font(.system(size: 20))
+                    .foregroundStyle(AppTheme.accent)
+            }
+            .padding(11)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(AppTheme.card)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(AppTheme.hairline, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func posterURL(_ m: Match) -> URL? {
+        if let tag = m.item.primaryImageTag {
+            return m.client.imageURL(itemId: m.item.id, tag: tag, maxWidth: 300)
+        }
+        return nil
+    }
+
+    /// 并行搜索所有其他已登录服务器
+    private func search() async {
+        searchTerm = item.SeriesName ?? item.Name ?? ""
+        guard !searchTerm.isEmpty else {
+            isSearching = false
+            return
+        }
+        let currentId = appState.currentServer?.id ?? ""
+        let targets = appState.servers
+            .filter { $0.id != currentId }
+            .compactMap { s -> (EmbyServer, EmbyClient)? in
+                guard let c = appState.client(for: s) else { return nil }
+                return (s, c)
+            }
+        guard !targets.isEmpty else {
+            isSearching = false
+            return
+        }
+
+        let found = await withTaskGroup(of: [Match].self) { group -> [Match] in
+            for (server, client) in targets {
+                group.addTask {
+                    let items = (try? await client.search(term: searchTerm,
+                                                          types: ["Movie", "Series"],
+                                                          limit: 20)) ?? []
+                    let kw = searchTerm.lowercased()
+                    let hits = items.filter { it in
+                        guard let n = it.Name?.lowercased(), !n.isEmpty else { return false }
+                        return n.contains(kw) || kw.contains(n)
+                    }.prefix(2)
+                    return hits.map {
+                        Match(id: server.id + "/" + $0.id, server: server, client: client, item: $0)
+                    }
+                }
+            }
+            var out: [Match] = []
+            for await r in group { out.append(contentsOf: r) }
+            return out
+        }
+        matches = found
+        isSearching = false
+    }
+
+    private func pick(_ m: Match) async {
+        let target: ItemDetailView.PlayTarget
+        if m.item.isSeries {
+            let eps = (try? await m.client.fetchEpisodes(seriesId: m.item.id)) ?? []
+            let first = eps.first ?? m.item
+            target = ItemDetailView.PlayTarget(item: first,
+                                               playlist: eps.isEmpty ? [m.item] : eps,
+                                               startSeconds: first.resumeSeconds > 5 ? first.resumeSeconds : nil,
+                                               clientOverride: m.client)
+        } else {
+            target = ItemDetailView.PlayTarget(item: m.item,
+                                               playlist: [m.item],
+                                               startSeconds: m.item.resumeSeconds,
+                                               clientOverride: m.client)
+        }
+        onPick(target)
     }
 }
 

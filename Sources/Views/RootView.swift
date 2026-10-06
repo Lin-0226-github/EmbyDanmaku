@@ -33,7 +33,7 @@ struct MainTabView: View {
                 .tabItem { Label("首页", systemImage: "house.fill") }
             PlaylistHubView()
                 .tabItem { Label("清单", systemImage: "list.bullet") }
-            LibraryTabView()
+            LibraryServersView()
                 .tabItem { Label("媒体库", systemImage: "square.grid.2x2.fill") }
             MineView()
                 .tabItem { Label("我的", systemImage: "person.fill") }

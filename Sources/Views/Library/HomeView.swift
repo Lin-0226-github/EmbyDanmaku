@@ -2,7 +2,8 @@
 //  HomeView.swift
 //  EmbyDanmaku
 //
-//  首页：全屏海报轮播 + 「我的媒体」入口。深色沉浸风格。
+//  首页：悬浮顶栏（Lplayers 标识 + 快捷切换服务器）+ 全屏海报轮播 + 「我的媒体」入口。
+//  深色沉浸风格。
 //
 
 import SwiftUI
@@ -22,18 +23,20 @@ struct HomeView: View {
 
     var body: some View {
         NavigationView {
-            ZStack {
+            ZStack(alignment: .top) {
                 AppTheme.background.ignoresSafeArea()
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         if !latestItems.isEmpty {
                             heroCarousel
+                                .padding(.top, 52)   // 给悬浮顶栏留出空间
                         } else if isLoading {
                             RoundedRectangle(cornerRadius: 0, style: .continuous)
                                 .fill(AppTheme.card)
-                                .frame(height: 430)
+                                .frame(height: 470)
                                 .overlay(ProgressView())
+                                .padding(.top, 52)
                         }
 
                         myMediaSection
@@ -42,10 +45,17 @@ struct HomeView: View {
                         Color.clear.frame(height: 16)
                     }
                 }
+
+                // 悬浮顶栏：随页面滚动固定在顶部，标题不再被状态栏遮挡
+                headerBar
             }
             .navigationBarHidden(true)
             .refreshable { await reload() }
             .task { await reload() }
+            .onChange(of: appState.currentServer?.id) { _ in
+                heroIndex = 0
+                Task { await reload() }
+            }
             .sheet(item: $addTarget) { item in
                 AddToPlaylistSheet(item: item)
             }
@@ -57,6 +67,66 @@ struct HomeView: View {
             }
         }
         .navigationViewStyle(.stack)
+    }
+
+    // MARK: - 悬浮顶栏
+
+    private var headerBar: some View {
+        HStack(spacing: 10) {
+            // App 标识
+            HStack(spacing: 5) {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(AppTheme.success)
+                    .frame(width: 15, height: 15)
+                Text("Lplayers")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+
+            Spacer(minLength: 8)
+
+            // 快捷切换服务器
+            Menu {
+                ForEach(appState.servers) { s in
+                    Button {
+                        Task { await appState.switchTo(s) }
+                    } label: {
+                        if s.id == appState.currentServer?.id {
+                            Label(s.name, systemImage: "checkmark")
+                        } else {
+                            Text(s.name)
+                        }
+                    }
+                }
+                Divider()
+                Button { appState.switchServer() } label: {
+                    Label("管理服务器 / 登录…", systemImage: "gearshape")
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "server.rack")
+                        .font(.system(size: 12, weight: .semibold))
+                    Text(appState.currentServer?.name ?? "选择服务器")
+                        .font(.system(size: 13, weight: .semibold))
+                        .lineLimit(1)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .bold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 11)
+                .padding(.vertical, 8)
+                .background(Capsule().fill(.black.opacity(0.45)))
+                .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
+        .background(
+            LinearGradient(colors: [Color.black.opacity(0.62), .clear],
+                           startPoint: .top, endPoint: .bottom)
+                .ignoresSafeArea(edges: .top)
+        )
     }
 
     // MARK: - 海报轮播
@@ -75,7 +145,7 @@ struct HomeView: View {
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
-            .frame(height: 430)
+            .frame(height: 470)
 
             // 自绘页点
             HStack(spacing: 7) {
@@ -91,42 +161,21 @@ struct HomeView: View {
     }
 
     private func heroCard(_ item: BaseItem) -> some View {
-        ZStack(alignment: .bottomLeading) {
+        ZStack(alignment: .bottom) {
             RemoteImageView(url: backdropURL(item),
                             placeholderSystemImage: "photo")
-                .frame(height: 430)
                 .frame(maxWidth: .infinity)
+                .frame(height: 470)
                 .clipped()
                 .overlay(
-                    LinearGradient(colors: [.clear, .clear, AppTheme.background.opacity(0.75), AppTheme.background],
+                    LinearGradient(colors: [.clear, .clear, AppTheme.background.opacity(0.82), AppTheme.background],
                                    startPoint: .top, endPoint: .bottom)
                 )
 
-            // 左上角 App 标识
-            VStack {
-                HStack {
-                    HStack(spacing: 5) {
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(AppTheme.success)
-                            .frame(width: 15, height: 15)
-                        Text("Lplayers")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.white)
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Capsule().fill(.black.opacity(0.42)))
-                    .padding(.leading, 14)
-                    .padding(.top, 6)
-                    Spacer(minLength: 0)
-                }
-                Spacer()
-            }
-
-            // 底部信息
-            VStack(alignment: .leading, spacing: 8) {
+            // 底部信息（行数受限，保证不被裁切）
+            VStack(alignment: .leading, spacing: 7) {
                 Text(item.Name ?? "")
-                    .font(.system(size: 24, weight: .bold))
+                    .font(.system(size: 23, weight: .bold))
                     .foregroundStyle(.white)
                     .lineLimit(2)
 
@@ -163,6 +212,7 @@ struct HomeView: View {
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .contextMenu { itemMenu(item) }
     }
@@ -273,12 +323,16 @@ struct HomeView: View {
     }
 }
 
-// MARK: - 媒体库 Tab（选库 + 网格）
+// MARK: - 媒体库浏览（按服务器；默认当前服务器）
 
 struct LibraryTabView: View {
+    /// 为 nil 时浏览当前登录的服务器；指定时浏览该服务器（媒体库 Tab 的服务器管理入口进入）
+    var server: EmbyServer? = nil
+
     @EnvironmentObject private var appState: AppState
     @StateObject private var store = PlaylistStore.shared
 
+    @State private var resolvedClient: EmbyClient?
     @State private var views: [BaseItem] = []
     @State private var items: [BaseItem] = []
     @State private var selectedId: String?
@@ -287,7 +341,7 @@ struct LibraryTabView: View {
     @State private var sortAscending = true
     @State private var addTarget: BaseItem?
 
-    private var client: EmbyClient? { appState.client }
+    private var client: EmbyClient? { resolvedClient ?? appState.client }
 
     var body: some View {
         NavigationView {
@@ -325,14 +379,14 @@ struct LibraryTabView: View {
                             LazyVGrid(columns: [GridItem(.adaptive(minimum: 106), spacing: 14)], spacing: 18) {
                                 ForEach(items) { item in
                                     NavigationLink {
-                                        ItemDetailView(item: item)
+                                        ItemDetailView(item: item, clientOverride: client)
                                     } label: {
                                         PosterCard(item: item, client: client!)
                                     }
                                     .buttonStyle(.plain)
                                     .contextMenu {
                                         Button {
-                                            let serverId = appState.currentServer?.id ?? ""
+                                            let serverId = server?.id ?? appState.currentServer?.id ?? ""
                                             store.toggleWatchLater(PlaylistEntry.make(from: item, serverId: serverId))
                                         } label: {
                                             Label("稍后再看", systemImage: "bookmark")
@@ -349,7 +403,8 @@ struct LibraryTabView: View {
                     }
                 }
             }
-            .navigationTitle("媒体库")
+            .navigationTitle(server?.name ?? "媒体库")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
@@ -360,7 +415,12 @@ struct LibraryTabView: View {
                     }
                 }
             }
-            .task { await loadViews() }
+            .task {
+                if resolvedClient == nil {
+                    resolvedClient = server.flatMap { appState.client(for: $0) } ?? appState.client
+                }
+                await loadViews()
+            }
             .refreshable { await loadViews() }
             .sheet(item: $addTarget) { item in
                 AddToPlaylistSheet(item: item)
