@@ -10,8 +10,10 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var settings: AppSettings
+    @StateObject private var store = PlaylistStore.shared
 
     @State private var showLogoutConfirm = false
+    @State private var showClearHistory = false
 
     private let bitrateOptions: [(String, Int)] = [
         ("自动（60 Mbps）", 60_000_000),
@@ -74,6 +76,13 @@ struct SettingsView: View {
                     }
                 }
 
+                Section("播放清单") {
+                    LabeledRow("自建清单") { Text("\(store.customPlaylists.count) 个").foregroundStyle(.secondary) }
+                    LabeledRow("稍后再看") { Text(store.watchLater.countText).foregroundStyle(.secondary) }
+                    LabeledRow("播放历史") { Text("\(store.history.count) 条").foregroundStyle(.secondary) }
+                    Button("清空播放历史", role: .destructive) { showClearHistory = true }
+                }
+
                 Section("账户") {
                     if let s = appState.currentServer {
                         LabeledRow("服务器") { Text(s.name).foregroundStyle(.secondary) }
@@ -91,9 +100,14 @@ struct SettingsView: View {
                     Link("弹弹play 开放弹幕网络", destination: URL(string: "https://www.dandanplay.com/open.html")!)
                 }
             }
+            .appBackground()
             .navigationTitle("设置")
             .confirmationDialog("确定退出登录？", isPresented: $showLogoutConfirm, titleVisibility: .visible) {
                 Button("退出登录", role: .destructive) { appState.logout() }
+                Button("取消", role: .cancel) { }
+            }
+            .confirmationDialog("清空本机的播放历史？", isPresented: $showClearHistory, titleVisibility: .visible) {
+                Button("清空", role: .destructive) { store.clearHistory() }
                 Button("取消", role: .cancel) { }
             }
         }

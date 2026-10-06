@@ -105,6 +105,7 @@ struct PlayerView: View {
     @StateObject private var volumeController = SystemVolumeController()
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var settings: AppSettings
+    @StateObject private var playlistStore = PlaylistStore.shared
 
     @State private var showControls: Bool = true
     @State private var dragMode: DragMode = .none
@@ -180,7 +181,10 @@ struct PlayerView: View {
                 .opacity(0.01)
         }
         .statusBarHidden(true)
-        .onAppear { scheduleControlsHide() }
+        .onAppear {
+            scheduleControlsHide()
+            recordHistory()
+        }
         .onDisappear {
             controlsTask?.cancel()
             vm.onDisappear()
@@ -357,6 +361,12 @@ struct PlayerView: View {
     private func closePlayer() {
         vm.onDisappear()
         dismiss()
+    }
+
+    /// 记一条本机播放历史，供「清单 → 播放历史」使用
+    private func recordHistory() {
+        let entry = PlaylistEntry.make(from: item, serverId: PlaylistStore.currentServerId)
+        playlistStore.recordHistory(entry)
     }
 
     // MARK: - 弹幕输入

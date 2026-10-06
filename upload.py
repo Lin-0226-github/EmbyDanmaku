@@ -33,7 +33,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-VERSION = "v12"
+VERSION = "v13"
 
 API = os.environ.get("GH_API", "https://api.github.com").rstrip("/")
 REPO_NAME = os.environ.get("GH_REPO", "EmbyDanmaku")
@@ -44,7 +44,8 @@ _CONTEXT = ssl.create_default_context()
 _SSL_WARNED = False
 
 # 这些目录 / 文件不上传（token.txt 是本机存令牌用的，绝对不能传上去）
-SKIP_DIRS = {".git", "Payload", "build", "build-signed", "xcuserdata", ".pkg", "__MACOSX"}
+SKIP_DIRS = {".git", "Payload", "build", "build-signed", "xcuserdata", ".pkg", "__MACOSX",
+             "__pycache__", ".codebuddy", ".idea", ".vscode"}
 SKIP_FILES = {".DS_Store", "token.txt"}
 SKIP_SUFFIX = (".ipa", ".icloud")   # .icloud = 还没从 iCloud 下载下来的占位文件
 

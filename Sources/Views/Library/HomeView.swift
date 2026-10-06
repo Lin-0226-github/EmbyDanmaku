@@ -2,13 +2,14 @@
 //  HomeView.swift
 //  EmbyDanmaku
 //
-//  首页：继续观看、最近加入、媒体库入口。
+//  首页：继续观看、最近加入、媒体库入口。深色卡片风格。
 //
 
 import SwiftUI
 
 struct HomeView: View {
     @EnvironmentObject private var appState: AppState
+    @StateObject private var store = PlaylistStore.shared
 
     @State private var views: [BaseItem] = []
     @State private var resumeItems: [BaseItem] = []
@@ -16,6 +17,7 @@ struct HomeView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var playingItem: PlayRequest?
+    @State private var addTarget: BaseItem?
 
     struct PlayRequest: Identifiable {
         var id: String { item.id }
@@ -28,69 +30,66 @@ struct HomeView: View {
 
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
-                    if !resumeItems.isEmpty {
-                        sectionHeader("继续观看", systemImage: "clock.arrow.circlepath")
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 12) {
-                                ForEach(resumeItems) { item in
-                                    Button { open(item) } label: {
-                                        WideCard(item: item, client: client!)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                            .padding(.horizontal, 16)
-                        }
-                    }
+            ZStack {
+                AppTheme.background.ignoresSafeArea()
 
-                    if !latestItems.isEmpty {
-                        sectionHeader("最近加入", systemImage: "sparkles")
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 12) {
-                                ForEach(latestItems) { item in
-                                    NavigationLink {
-                                        ItemDetailView(item: item)
-                                    } label: {
-                                        PosterCard(item: item, client: client!)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                            .padding(.horizontal, 16)
-                        }
-                    }
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        titleBlock
 
-                    sectionHeader("媒体库", systemImage: "square.grid.2x2")
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 12)], spacing: 12) {
-                        ForEach(views) { v in
-                            NavigationLink {
-                                LibraryGridView(view: v)
-                            } label: {
-                                libraryTile(v)
+                        if !resumeItems.isEmpty {
+                            SectionHeader(title: "继续观看", systemImage: "play.circle.fill")
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 12) {
+                                    ForEach(resumeItems) { item in
+                                        Button { open(item) } label: {
+                                            WideCard(item: item, client: client!)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .contextMenu { itemMenu(item) }
+                                    }
+                                }
+                                .padding(.horizontal, 16)
                             }
-                            .buttonStyle(.plain)
                         }
-                    }
-                    .padding(.horizontal, 16)
-                }
-                .padding(.vertical, 12)
-            }
-            .navigationTitle(appState.currentServer?.name ?? "媒体库")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Menu {
-                        Button {
-                            appState.switchServer()
-                        } label: {
-                            Label("切换服务器", systemImage: "server.rack")
+
+                        if !latestItems.isEmpty {
+                            SectionHeader(title: "最近加入", systemImage: "sparkles")
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 12) {
+                                    ForEach(latestItems) { item in
+                                        NavigationLink {
+                                            ItemDetailView(item: item)
+                                        } label: {
+                                            PosterCard(item: item, client: client!)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .contextMenu { itemMenu(item) }
+                                    }
+                                }
+                                .padding(.horizontal, 16)
+                            }
                         }
-                    } label: {
-                        Image(systemName: "person.circle")
+
+                        SectionHeader(title: "媒体库", systemImage: "square.grid.2x2.fill")
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 12)], spacing: 12) {
+                            ForEach(views) { v in
+                                NavigationLink {
+                                    LibraryGridView(view: v)
+                                } label: {
+                                    libraryTile(v)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+
+                        Color.clear.frame(height: 16)
                     }
+                    .padding(.vertical, 12)
                 }
             }
+            .navigationBarHidden(true)
             .refreshable { await reload() }
             .overlay {
                 if isLoading && resumeItems.isEmpty && views.isEmpty {
@@ -98,6 +97,9 @@ struct HomeView: View {
                 }
             }
             .task { await reload() }
+            .sheet(item: $addTarget) { item in
+                AddToPlaylistSheet(item: item)
+            }
             .fullScreenCover(item: $playingItem) { req in
                 if let c = client {
                     PlayerView(client: c, item: req.item, playlist: req.playlist, startSeconds: req.startSeconds)
@@ -113,36 +115,95 @@ struct HomeView: View {
         .navigationViewStyle(.stack)
     }
 
-    // MARK: - 视图组件
+    // MARK: - 顶部
 
-    private func sectionHeader(_ title: String, systemImage: String) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: systemImage)
-                .foregroundStyle(Color.accentColor)
-            Text(title)
-                .font(.headline)
+    private var titleBlock: some View {
+        HStack(alignment: .bottom, spacing: 10) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("媒体库")
+                    .font(.system(size: 30, weight: .bold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                HStack(spacing: 6) {
+                    if let s = appState.currentServer {
+                        Text(s.name)
+                            .font(.system(size: 13))
+                            .foregroundStyle(AppTheme.textTertiary)
+                            .lineLimit(1)
+                    }
+                    if let u = appState.currentUserName {
+                        Text("· \(u)")
+                            .font(.system(size: 13))
+                            .foregroundStyle(AppTheme.textTertiary)
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+            Menu {
+                Button {
+                    appState.switchServer()
+                } label: {
+                    Label("切换服务器", systemImage: "server.rack")
+                }
+            } label: {
+                Image(systemName: "person.circle.fill")
+                    .font(.system(size: 26))
+                    .foregroundStyle(AppTheme.accent)
+            }
         }
         .padding(.horizontal, 16)
     }
 
+    @ViewBuilder
+    private func itemMenu(_ item: BaseItem) -> some View {
+        Button {
+            let serverId = appState.currentServer?.id ?? ""
+            store.toggleWatchLater(PlaylistEntry.make(from: item, serverId: serverId))
+        } label: {
+            Label("稍后再看", systemImage: "bookmark")
+        }
+        Button {
+            addTarget = item
+        } label: {
+            Label("加入清单…", systemImage: "plus")
+        }
+    }
+
+    // MARK: - 视图组件
+
     private func libraryTile(_ v: BaseItem) -> some View {
         ZStack(alignment: .bottomLeading) {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(LinearGradient(colors: [.accentColor.opacity(0.85), .accentColor.opacity(0.45)],
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(LinearGradient(colors: [AppTheme.accent.opacity(0.9), AppTheme.accent.opacity(0.42)],
                                      startPoint: .topLeading, endPoint: .bottomTrailing))
-                .frame(height: 76)
-            VStack(alignment: .leading, spacing: 2) {
+                .frame(height: 78)
+            VStack(alignment: .leading, spacing: 3) {
                 Text(v.Name ?? "")
-                    .font(.headline)
+                    .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(.white)
                     .lineLimit(1)
-                if let type = v.CollectionType {
-                    Text(type == "movies" ? "电影" : (type == "tvshows" ? "剧集" : type))
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.8))
+                HStack(spacing: 5) {
+                    Text(typeName(v))
+                        .font(.system(size: 12))
+                        .foregroundStyle(.white.opacity(0.82))
+                    if let c = v.RecursiveItemCount, c > 0 {
+                        Text("· \(c) 项")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
                 }
             }
             .padding(12)
+        }
+    }
+
+    private func typeName(_ v: BaseItem) -> String {
+        switch v.CollectionType {
+        case "movies": return "电影"
+        case "tvshows": return "剧集"
+        case "music": return "音乐"
+        case "books": return "图书"
+        case "homevideos": return "家庭视频"
+        default: return v.CollectionType ?? "媒体"
         }
     }
 
@@ -191,26 +252,34 @@ struct LibraryGridView: View {
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var sortAscending = true
+    @State private var addTarget: BaseItem?
 
-    private let columns = [GridItem(.adaptive(minimum: 104), spacing: 12)]
+    private let columns = [GridItem(.adaptive(minimum: 104), spacing: 14)]
 
     var body: some View {
-        Group {
-            if isLoading {
-                ProgressView("加载中…")
-            } else {
-                ScrollView {
-                    LazyVGrid(columns: columns, spacing: 16) {
-                        ForEach(items) { item in
-                            NavigationLink {
-                                ItemDetailView(item: item)
-                            } label: {
-                                PosterCard(item: item, client: appState.client!)
+        ZStack {
+            AppTheme.background.ignoresSafeArea()
+            Group {
+                if isLoading {
+                    ProgressView("加载中…")
+                } else if items.isEmpty {
+                    EmptyStateView(systemImage: "square.grid.2x2",
+                                   title: "这个库里还没有内容",
+                                   subtitle: nil)
+                } else {
+                    ScrollView {
+                        LazyVGrid(columns: columns, spacing: 18) {
+                            ForEach(items) { item in
+                                NavigationLink {
+                                    ItemDetailView(item: item)
+                                } label: {
+                                    PosterCard(item: item, client: appState.client!)
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
+                        .padding(16)
                     }
-                    .padding(16)
                 }
             }
         }
@@ -227,6 +296,9 @@ struct LibraryGridView: View {
             }
         }
         .task { await load() }
+        .sheet(item: $addTarget) { item in
+            AddToPlaylistSheet(item: item)
+        }
         .alert("出错了", isPresented: Binding(get: { errorMessage != nil },
                                               set: { if !$0 { errorMessage = nil } })) {
             Button("好", role: .cancel) { errorMessage = nil }

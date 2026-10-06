@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ItemDetailView: View {
     @EnvironmentObject private var appState: AppState
+    @StateObject private var store = PlaylistStore.shared
     let item: BaseItem
 
     @State private var detail: BaseItem?
@@ -18,6 +19,7 @@ struct ItemDetailView: View {
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var playTarget: PlayTarget?
+    @State private var showAddToPlaylist = false
 
     struct PlayTarget: Identifiable {
         var id: String { item.id + String(startSeconds ?? 0) }
@@ -44,9 +46,13 @@ struct ItemDetailView: View {
                 Color.clear.frame(height: 24)
             }
         }
+        .appBackground()
         .ignoresSafeArea(edges: .top)
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
+        .sheet(isPresented: $showAddToPlaylist) {
+            AddToPlaylistSheet(item: shown, episodes: shown.isSeries ? episodes : [])
+        }
         .fullScreenCover(item: $playTarget) { target in
             if let c = client {
                 PlayerView(client: c, item: target.item, playlist: target.playlist, startSeconds: target.startSeconds)
@@ -116,41 +122,47 @@ struct ItemDetailView: View {
     // MARK: - 操作区
 
     private var infoSection: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 12) {
-                Button { startPlayback() } label: {
-                    HStack {
-                        Image(systemName: shown.progress > 0.02 ? "play.fill" : "play.fill")
-                        Text(shown.progress > 0.02 ? "继续播放" : "播放")
-                    }
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
+        VStack(spacing: 14) {
+            HStack(spacing: 10) {
+                PrimaryPlayButton(title: shown.progress > 0.02 ? "继续播放" : "播放",
+                                  isLoading: isLoading) {
+                    startPlayback()
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(isLoading)
 
-                Button { Task { await toggleWatched() } } label: {
-                    Image(systemName: shown.watched ? "checkmark.circle.fill" : "checkmark.circle")
-                        .font(.system(size: 22))
-                        .frame(width: 44, height: 44)
+                CircleIconButton(systemImage: shown.watched ? "checkmark.circle.fill" : "checkmark.circle",
+                                 active: shown.watched,
+                                 activeColor: AppTheme.success) {
+                    Task { await toggleWatched() }
                 }
-                .buttonStyle(.bordered)
 
-                Button { Task { await toggleFavorite() } } label: {
-                    Image(systemName: (shown.UserData?.IsFavorite ?? false) ? "heart.fill" : "heart")
-                        .font(.system(size: 22))
-                        .foregroundStyle((shown.UserData?.IsFavorite ?? false) ? .red : .primary)
-                        .frame(width: 44, height: 44)
+                CircleIconButton(systemImage: (shown.UserData?.IsFavorite ?? false) ? "heart.fill" : "heart",
+                                 active: shown.UserData?.IsFavorite ?? false,
+                                 activeColor: AppTheme.accentWarm) {
+                    Task { await toggleFavorite() }
                 }
-                .buttonStyle(.bordered)
+
+                CircleIconButton(systemImage: store.isInWatchLater(shown.id) ? "bookmark.fill" : "bookmark",
+                                 active: store.isInWatchLater(shown.id),
+                                 activeColor: AppTheme.accentWarm) {
+                    toggleWatchLater()
+                }
+
+                CircleIconButton(systemImage: "plus", active: false, activeColor: AppTheme.accent) {
+                    showAddToPlaylist = true
+                }
             }
 
             if !shown.Genres.orEmpty.isEmpty {
                 chipsRow(shown.Genres.orEmpty, systemImage: "tag")
             }
         }
-        .padding(16)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+
+    private func toggleWatchLater() {
+        let serverId = appState.currentServer?.id ?? ""
+        store.toggleWatchLater(PlaylistEntry.make(from: shown, serverId: serverId))
     }
 
     private func chipsRow(_ items: [String], systemImage: String) -> some View {
@@ -162,9 +174,10 @@ struct ItemDetailView: View {
                 ForEach(items, id: \.self) { t in
                     Text(t)
                         .font(.caption)
+                        .foregroundStyle(AppTheme.textSecondary)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
-                        .background(.quaternary, in: Capsule())
+                        .background(AppTheme.elevated, in: Capsule())
                 }
             }
         }
@@ -195,13 +208,13 @@ struct ItemDetailView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                         VStack(alignment: .leading, spacing: 4) {
                             Text(ep.displayTitle)
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.primary)
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(AppTheme.textPrimary)
                                 .lineLimit(2)
                             if let ov = ep.Overview, !ov.isEmpty {
                                 Text(ov)
                                     .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(AppTheme.textTertiary)
                                     .lineLimit(3)
                             }
                             HStack(spacing: 8) {
@@ -225,7 +238,16 @@ struct ItemDetailView: View {
                     }
                 }
                 .buttonStyle(.plain)
+                .contextMenu {
+                    Button {
+                        let serverId = appState.currentServer?.id ?? ""
+                        store.toggleWatchLater(PlaylistEntry.make(from: ep, serverId: serverId))
+                    } label: {
+                        Label("加入稍后再看", systemImage: "bookmark")
+                    }
+                }
                 Divider()
+                    .background(AppTheme.hairline)
             }
         }
         .padding(.horizontal, 16)

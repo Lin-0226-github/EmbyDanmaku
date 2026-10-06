@@ -55,6 +55,12 @@ jobs:
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-version
 
+      # 仓库里的 .xcodeproj 写死了文件清单，新增/删除 .swift 后必须同步，
+      # 否则新代码根本不会被编译（而且不报错，只是功能静默缺失）。
+      - name: 同步 Xcode 工程文件
+        run: |
+          python3 sync_project.py
+
       # ---------------- 未签名构建（默认，零配置） ----------------
       - name: 构建未签名 .app
         if: ${{ github.event.inputs.sign_mode != 'signed' }}

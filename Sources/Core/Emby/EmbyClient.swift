@@ -23,7 +23,7 @@ enum DeviceCapability {
     static let textSubtitleCodecs = ["srt", "subrip", "ass", "ssa", "vtt", "webvtt", "smi", "pgssub"]
 }
 
-final class EmbyClient {
+final class EmbyClient: @unchecked Sendable {
 
     // MARK: - 属性
 
@@ -288,6 +288,32 @@ final class EmbyClient {
                                    "EnableImageTypes": "Primary,Backdrop"]
         if let parentId { q["ParentId"] = parentId }
         return try await getTolerantList("/emby/Users/\(uid)/Items/Latest", query: q)
+    }
+
+    // MARK: - 服务器播放列表
+
+    /// 服务器上属于当前用户的播放列表
+    func fetchServerPlaylists() async throws -> [BaseItem] {
+        guard let uid = userId else { throw EmbyError.notAuthenticated }
+        let r: ItemsResult = try await get("/emby/Users/\(uid)/Items",
+                                           query: ["IncludeItemTypes": "Playlist",
+                                                   "Recursive": "true",
+                                                   "SortBy": "SortName",
+                                                   "Fields": "PrimaryImageAspectRatio,UserData,ChildCount,Overview",
+                                                   "EnableImageTypes": "Primary"],
+                                           as: ItemsResult.self)
+        return r.Items ?? []
+    }
+
+    /// 某个服务器播放列表里的条目
+    func fetchPlaylistItems(_ playlistId: String) async throws -> [BaseItem] {
+        guard let uid = userId else { throw EmbyError.notAuthenticated }
+        let r: ItemsResult = try await get("/emby/Playlists/\(playlistId)/Items",
+                                           query: ["UserId": uid,
+                                                   "Fields": "PrimaryImageAspectRatio,UserData,Overview,MediaSources",
+                                                   "EnableImageTypes": "Primary,Backdrop"],
+                                           as: ItemsResult.self)
+        return r.Items ?? []
     }
 
     func search(term: String, types: [String] = ["Movie", "Series", "Episode"], limit: Int = 60) async throws -> [BaseItem] {

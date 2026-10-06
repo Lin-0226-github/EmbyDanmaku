@@ -41,10 +41,10 @@ struct RemoteImageView: View {
                     .aspectRatio(contentMode: contentMode)
             } else {
                 ZStack {
-                    Color(.secondarySystemBackground)
+                    AppTheme.elevated
                     Image(systemName: placeholderSystemImage)
                         .font(.title2)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(AppTheme.textTertiary)
                 }
             }
         }
@@ -128,15 +128,16 @@ struct PosterCard: View {
             }
 
             Text(item.Name ?? "")
-                .font(.footnote.weight(.medium))
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(AppTheme.textPrimary)
                 .lineLimit(2)
                 .multilineTextAlignment(.leading)
                 .frame(width: width, alignment: .leading)
 
             if let sub = item.subtitleText {
                 Text(sub)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 11))
+                    .foregroundStyle(AppTheme.textTertiary)
                     .lineLimit(1)
             }
         }
@@ -174,12 +175,13 @@ struct WideCard: View {
                     }
             }
             Text(title)
-                .font(.subheadline.weight(.semibold))
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(AppTheme.textPrimary)
                 .lineLimit(1)
             if let sub = item.subtitleText {
                 Text(sub)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 12))
+                    .foregroundStyle(AppTheme.textTertiary)
                     .lineLimit(1)
             }
         }
