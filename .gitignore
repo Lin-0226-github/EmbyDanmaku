@@ -1,0 +1,15 @@
+# Xcode
+build/
+build-signed/
+*.xcuserstate
+EmbyDanmaku.xcodeproj/xcuserdata/
+EmbyDanmaku.xcodeproj/project.xcworkspace/xcuserdata/
+DerivedData/
+
+# 构建产物
+Payload/
+*.ipa
+*.dSYM.zip
+
+# 本机文件
+.DS_Store
