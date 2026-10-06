@@ -23,6 +23,7 @@ EmbyDanmaku —— 不用 git，直接把整个项目上传到 GitHub（a-Shell 
 """
 
 import base64
+import hashlib
 import json
 import os
 import ssl
@@ -32,7 +33,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-VERSION = "v5"
+VERSION = "v7"
 
 API = os.environ.get("GH_API", "https://api.github.com").rstrip("/")
 REPO_NAME = os.environ.get("GH_REPO", "EmbyDanmaku")
@@ -232,7 +233,7 @@ def commit_via_git_data(base, token, tree):
             break
         wait = 5 * (attempt + 1)
         print("      建树返回 %s（%s），等 %d 秒重试（%d/3）..."
-              % (st, str(t.get("message", ""))[:80], wait, attempt + 1), flush=True)
+              % (st, one_line(t.get("message", "")), wait, attempt + 1), flush=True)
         time.sleep(wait)
     if st != 201:
         print("× 建树失败（HTTP %s）：%s" % (st, t.get("message", "")), flush=True)
@@ -264,28 +265,45 @@ def commit_via_git_data(base, token, tree):
     return True
 
 
+def git_blob_sha(data):
+    """算出内容对应的 git blob sha（和 GitHub 存储的完全一致），用来判断文件是否相同"""
+    return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
+
+
+def one_line(msg):
+    """GitHub 的报错信息常带换行，压成一行方便阅读"""
+    return str(msg).replace("\n", " ").strip()[:100]
+
+
 def upload_via_contents(base, token, files):
     """兜底方案：逐文件走 Contents API。
-    每个文件一个提交，慢一点（约每文件 2 秒）但最稳；
-    文件已存在时 GitHub 要求带旧 sha，会自动先查再覆盖。
+    每个文件一个提交，慢一点（约每文件 2 秒）但最稳。
+    已存在的文件（GitHub 对这种情况 409 / 422 都会返回）：
+      内容相同 → 直接跳过；内容不同 → 带旧 sha 覆盖。
     """
-    print("兜底方案：逐个文件上传（共 %d 个，约 %d 秒，请耐心）..."
-          % (len(files), len(files) * 2), flush=True)
+    print("兜底方案：逐个文件上传（共 %d 个）..." % len(files), flush=True)
     fails = []
+    scope_hint_shown = False
     for i, (rel, full) in enumerate(files, 1):
         with open(full, "rb") as f:
             raw = f.read()
+        local_sha = git_blob_sha(raw)
         quoted = urllib.parse.quote(rel)
         payload = {"message": "upload %d/%d: %s" % (i, len(files), rel),
                    "content": base64.b64encode(raw).decode("ascii"),
                    "branch": BRANCH}
         st, r = request("PUT", base + "/contents/" + quoted, token, payload)
         tag = ""
-        if st == 409:
-            # 文件已存在，查旧 sha 再覆盖
-            st, cur = request("GET", base + "/contents/" + quoted + "?ref=" + BRANCH, token)
-            if st == 200 and cur.get("sha"):
-                payload["sha"] = cur["sha"]
+        # 已存在的文件：GitHub 有时回 409、有时回 422，统一按「需要旧 sha」处理
+        if st in (409, 422):
+            gst, cur = request("GET", base + "/contents/" + quoted + "?ref=" + BRANCH,
+                               token)
+            remote_sha = (cur.get("sha") or "") if gst == 200 else ""
+            if remote_sha == local_sha:
+                print("  [%d/%d] %s（内容相同，已跳过）" % (i, len(files), rel), flush=True)
+                continue
+            if remote_sha:
+                payload["sha"] = remote_sha
                 st, r = request("PUT", base + "/contents/" + quoted, token, payload)
                 tag = "（覆盖）"
         if st in (200, 201):
@@ -293,12 +311,42 @@ def upload_via_contents(base, token, files):
         else:
             fails.append(rel)
             print("  × [%d/%d] %s（HTTP %s）：%s"
-                  % (i, len(files), rel, st, str(r.get("message", ""))[:80]), flush=True)
+                  % (i, len(files), rel, st, one_line(r.get("message", ""))), flush=True)
+            if rel.startswith(".github/") and not scope_hint_shown:
+                scope_hint_shown = True
+                print("      ! 这个文件在 .github 目录里，令牌需要多勾一个 workflow 权限：",
+                      flush=True)
+                print("        Safari 打开 github.com/settings/tokens → 点你的令牌 →",
+                      flush=True)
+                print("        勾选 workflow → 拉到底点 Update token（令牌字符串不变）",
+                      flush=True)
+                print("        然后把本脚本再跑一遍，就会把工作流文件补上去", flush=True)
         time.sleep(0.5)
     if fails:
         print("× 有 %d 个文件没传上去：%s ..." % (len(fails), "、".join(fails[:3])))
         return False
     return True
+
+
+def trigger_build(base, user, token):
+    """上传完成后，直接用 API 触发 Actions 构建工作流（workflow_dispatch）"""
+    print("[额外] 正在自动触发云端构建 ...", flush=True)
+    st, r = request("POST", base + "/actions/workflows/build-ipa.yml/dispatches",
+                    token, {"ref": BRANCH})
+    if st in (200, 204):
+        print("      构建已触发！Safari 打开 https://github.com/%s/%s/actions"
+              % (user, REPO_NAME), flush=True)
+        print("      等它跑完（5~10 分钟），到 Releases（标签 latest-ipa）下载 IPA", flush=True)
+        return True
+    print("      自动触发没成功（HTTP %s：%s）" % (st, one_line(r.get("message", ""))),
+          flush=True)
+    print("      最常见原因：.github/workflows/build-ipa.yml 还没在仓库里（缺 workflow", flush=True)
+    print("      权限被拒收）。解决：github.com/settings/tokens 给令牌勾上 workflow →", flush=True)
+    print("      Update token → 重跑本脚本补传 → 再跑一次本脚本或手动触发：", flush=True)
+    print("      Safari 打开 https://github.com/%s/%s/actions → 左侧 Build iOS IPA →"
+          % (user, REPO_NAME), flush=True)
+    print("      Run workflow → 签名方式填 unsigned", flush=True)
+    return False
 
 
 def main():
@@ -403,7 +451,8 @@ def main():
             print("× 仍有文件没传上去。把本脚本再跑一遍即可续传覆盖，不用清理任何东西")
             sys.exit(1)
 
-    # 收尾：删掉本地的 token.txt，令牌不留在手机里
+    # 收尾：触发云端构建 + 删掉本地的 token.txt
+    trigger_build(base, user, token)
     tf = os.path.join(root, "token.txt")
     if os.path.isfile(tf):
         try:
@@ -414,9 +463,6 @@ def main():
 
     print()
     print("== 上传完成！共 %d 个文件都在仓库里了 ==" % len(files))
-    print("下一步：Safari 打开 https://github.com/%s/%s/actions" % (user, REPO_NAME))
-    print("  选 Build iOS IPA → Run workflow → 签名方式 unsigned → 等 5~10 分钟")
-    print("  构建完成后到 Releases（标签 latest-ipa）下载 IPA")
 
 
 if __name__ == "__main__":
