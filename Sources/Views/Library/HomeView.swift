@@ -161,6 +161,7 @@ struct HomeView: View {
             resumeItems = resumeResult
             latestItems = latestResult
         } catch {
+            if error.isCancellation { return }
             errorMessage = error.localizedDescription
         }
     }
@@ -246,6 +247,7 @@ struct LibraryGridView: View {
                                                 limit: 500)
             items = r.Items ?? []
         } catch {
+            if error.isCancellation { return }
             errorMessage = error.localizedDescription
         }
     }

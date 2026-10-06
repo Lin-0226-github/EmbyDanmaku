@@ -130,7 +130,7 @@ final class EmbyClient {
         do {
             return try decoder.decode(T.self, from: data)
         } catch {
-            throw EmbyError.decoding(error)
+            throw EmbyError.decoding(EmbyError.decodeFailure(error, data: data))
         }
     }
 
@@ -140,7 +140,7 @@ final class EmbyClient {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try JSONEncoder().encode(body)
         let (data, _) = try await send(req)
-        do { return try decoder.decode(T.self, from: data) } catch { throw EmbyError.decoding(error) }
+        do { return try decoder.decode(T.self, from: data) } catch { throw EmbyError.decoding(EmbyError.decodeFailure(error, data: data)) }
     }
 
     private func postNoResult<B: Encodable>(_ path: String, body: B) async throws {

@@ -65,6 +65,7 @@ final class AppState: ObservableObject {
             }
             persistServers()
         } catch {
+            if error.isCancellation { return }
             errorMessage = "无法连接服务器：\(error.localizedDescription)"
         }
     }
@@ -135,6 +136,7 @@ final class AppState: ObservableObject {
             self.currentUserName = result.User?.Name ?? username
             self.isLoggedIn = true
         } catch {
+            if error.isCancellation { return }
             errorMessage = "登录失败：\(error.localizedDescription)"
         }
     }

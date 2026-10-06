@@ -298,6 +298,7 @@ struct ItemDetailView: View {
             selectedSeasonId = firstId
             if let firstId { await loadEpisodes(seasonId: firstId) }
         } catch {
+            if error.isCancellation { return }
             errorMessage = error.localizedDescription
         }
     }
@@ -307,6 +308,7 @@ struct ItemDetailView: View {
         do {
             episodes = try await client.fetchEpisodes(seriesId: item.id, seasonId: seasonId)
         } catch {
+            if error.isCancellation { return }
             errorMessage = error.localizedDescription
         }
     }
@@ -334,6 +336,7 @@ struct ItemDetailView: View {
             }
             detail = try await client.fetchItem(item.id)
         } catch {
+            if error.isCancellation { return }
             errorMessage = error.localizedDescription
         }
     }
@@ -344,6 +347,7 @@ struct ItemDetailView: View {
             try await client.setFavorite(shown.id, favorite: !(shown.UserData?.IsFavorite ?? false))
             detail = try await client.fetchItem(item.id)
         } catch {
+            if error.isCancellation { return }
             errorMessage = error.localizedDescription
         }
     }

@@ -115,7 +115,7 @@ struct BaseItem: Codable, Identifiable, Hashable {
     let DateCreated: String?
     let Taglines: [String]?
     let ExternalUrls: [ExternalUrl]?
-    let ProviderIds: [String: String]?
+    let ProviderIds: [String: FlexibleScalar]?
 
     enum CodingKeys: String, CodingKey {
         case Id, Name, OriginalTitle, SortName, Overview
@@ -215,10 +215,34 @@ struct ExternalUrl: Codable, Hashable {
     let Url: String?
 }
 
-struct ItemsResult: Codable {
+struct ItemsResult: Decodable {
     let Items: [BaseItem]?
     let TotalRecordCount: Int?
     let StartIndex: Int?
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        // 宽容解码：个别条目数据异常时跳过该条目，而不是整个列表都加载失败
+        if let arr = try? c.decode([TolerantItem].self, forKey: .Items) {
+            Items = arr.compactMap(\.item)
+        } else {
+            Items = nil
+        }
+        TotalRecordCount = try? c.decodeIfPresent(Int.self, forKey: .TotalRecordCount)
+        StartIndex = try? c.decodeIfPresent(Int.self, forKey: .StartIndex)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case Items, TotalRecordCount, StartIndex
+    }
+
+    /// 单条解码失败就变 nil 的包装器
+    private struct TolerantItem: Decodable {
+        let item: BaseItem?
+        init(from decoder: Decoder) throws {
+            item = try? BaseItem(from: decoder)
+        }
+    }
 }
 
 // MARK: - 播放信息
@@ -343,7 +367,7 @@ struct MediaStream: Codable, Hashable, Identifiable {
 enum EmbyError: LocalizedError {
     case invalidURL
     case badStatus(Int, String?)
-    case decoding(Error)
+    case decoding(String)
     case notAuthenticated
     case playbackUnavailable
 
@@ -353,9 +377,72 @@ enum EmbyError: LocalizedError {
         case .badStatus(let code, let msg):
             if let msg, !msg.isEmpty { return "请求失败 (\(code))：\(msg)" }
             return "请求失败 (\(code))"
-        case .decoding(let e): return "数据解析失败：\(e.localizedDescription)"
+        case .decoding(let detail): return detail
         case .notAuthenticated: return "尚未登录"
         case .playbackUnavailable: return "该媒体没有任何可用的播放源"
         }
+    }
+
+    /// 把解码错误翻译成能看懂的信息：哪个字段出了问题 + 服务器响应的开头长什么样。
+    /// 这样即使再出解析问题，弹窗里就能直接看出原因，不用再猜。
+    static func decodeFailure(_ error: Error, data: Data) -> String {
+        var detail = ""
+        if let de = error as? DecodingError {
+            let path: ([(any CodingKey)]?) -> String = { keys in
+                (keys ?? []).map { $0.stringValue }.joined(separator: ".")
+            }
+            switch de {
+            case .typeMismatch(_, let ctx):
+                let p = path(ctx.codingPath)
+                detail = p.isEmpty ? "数据类型不对" : "字段 \(p) 类型不对"
+            case .keyNotFound(let key, _):
+                detail = "缺少字段 \(key.stringValue)"
+            case .valueNotFound(_, let ctx):
+                let p = path(ctx.codingPath)
+                detail = "字段 \(p) 的值是 null"
+            case .dataCorrupted(let ctx):
+                let p = path(ctx.codingPath)
+                detail = p.isEmpty ? "响应不是有效的 JSON" : "字段 \(p) 数据损坏"
+            @unknown default:
+                detail = error.localizedDescription
+            }
+        } else {
+            detail = error.localizedDescription
+        }
+        let head = String(data: data.prefix(150), encoding: .utf8) ?? ""
+        return "数据解析失败：\(detail)。响应开头：\(head)"
+    }
+}
+
+extension Error {
+    /// 任务被取消（切换页面、重复刷新等）不算真错误，不应该弹窗
+    var isCancellation: Bool {
+        if self is CancellationError { return true }
+        if let ue = self as? URLError, ue.code == .cancelled { return true }
+        return false
+    }
+}
+
+/// 兼容值为字符串或数字的字段（Emby 的 ProviderIds 等偶尔会返回数字）
+enum FlexibleScalar: Codable, Hashable {
+    case text(String)
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.singleValueContainer()
+        if let s = try? c.decode(String.self) { self = .text(s) }
+        else if let i = try? c.decode(Int64.self) { self = .text(String(i)) }
+        else if let d = try? c.decode(Double.self) { self = .text(String(d)) }
+        else if let b = try? c.decode(Bool.self) { self = .text(String(b)) }
+        else { self = .text("") }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.singleValueContainer()
+        if case .text(let s) = self { try c.encode(s) }
+    }
+
+    var stringValue: String {
+        if case .text(let s) = self { return s }
+        return ""
     }
 }

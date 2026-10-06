@@ -89,6 +89,7 @@ struct SearchView: View {
             do {
                 results = try await client.search(term: q)
             } catch {
+                if error.isCancellation { return }
                 errorMessage = error.localizedDescription
             }
         }
