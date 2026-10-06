@@ -33,7 +33,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-VERSION = "v18"
+VERSION = "v19"
 
 API = os.environ.get("GH_API", "https://api.github.com").rstrip("/")
 REPO_NAME = os.environ.get("GH_REPO", "EmbyDanmaku")

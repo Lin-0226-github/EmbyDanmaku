@@ -576,6 +576,9 @@ struct ItemSourceSheet: View {
             isSearching = false
             return
         }
+        // 关键：addTask 的闭包是 @Sendable、不继承主线程上下文，
+        // 里面不能直接访问 @State（searchTerm），必须先用局部常量拷贝下来
+        let term = searchTerm
         let currentId = appState.currentServer?.id ?? ""
         let targets = appState.servers
             .filter { $0.id != currentId }
@@ -591,10 +594,10 @@ struct ItemSourceSheet: View {
         let found = await withTaskGroup(of: [Match].self) { group -> [Match] in
             for (server, client) in targets {
                 group.addTask {
-                    let items = (try? await client.search(term: searchTerm,
+                    let items = (try? await client.search(term: term,
                                                           types: ["Movie", "Series"],
                                                           limit: 20)) ?? []
-                    let kw = searchTerm.lowercased()
+                    let kw = term.lowercased()
                     let hits = items.filter { it in
                         guard let n = it.Name?.lowercased(), !n.isEmpty else { return false }
                         return n.contains(kw) || kw.contains(n)
