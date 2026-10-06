@@ -143,6 +143,26 @@ final class EmbyClient {
         do { return try decoder.decode(T.self, from: data) } catch { throw EmbyError.decoding(EmbyError.decodeFailure(error, data: data)) }
     }
 
+    /// 数组版宽容解码：返回裸 JSON 数组的接口用这个。
+    /// 个别条目数据异常时跳过该条目，而不是整个列表失败。
+    func getTolerantList<T: Decodable>(_ path: String, query: [String: String] = [:]) async throws -> [T] {
+        let req = try request(path: path, query: query)
+        let (data, _) = try await send(req)
+        if let arr = try? decoder.decode([T].self, from: data) { return arr }
+        if let raw = try? JSONSerialization.jsonObject(with: data), let list = raw as? [Any] {
+            var out: [T] = []
+            for element in list {
+                if let d = try? JSONSerialization.data(withJSONObject: element),
+                   let item = try? decoder.decode(T.self, from: d) {
+                    out.append(item)
+                }
+            }
+            return out
+        }
+        throw EmbyError.decoding("数据解析失败：响应不是预期的 JSON 数组。响应开头："
+                                 + (String(data: data.prefix(150), encoding: .utf8) ?? ""))
+    }
+
     private func postNoResult<B: Encodable>(_ path: String, body: B) async throws {
         var req = try request(path: path)
         req.httpMethod = "POST"
@@ -260,15 +280,14 @@ final class EmbyClient {
         return r.Items ?? []
     }
 
-    /// 最近加入
+    /// 最近加入（注意：这个接口返回的是裸数组，不是 {Items:[...]} 对象）
     func fetchLatest(parentId: String? = nil, limit: Int = 24) async throws -> [BaseItem] {
         guard let uid = userId else { throw EmbyError.notAuthenticated }
         var q: [String: String] = ["UserId": uid, "Limit": String(limit),
                                    "Fields": "PrimaryImageAspectRatio,UserData,Overview",
                                    "EnableImageTypes": "Primary,Backdrop"]
         if let parentId { q["ParentId"] = parentId }
-        let r: ItemsResult = try await get("/emby/Users/\(uid)/Items/Latest", query: q, as: ItemsResult.self)
-        return r.Items ?? []
+        return try await getTolerantList("/emby/Users/\(uid)/Items/Latest", query: q)
     }
 
     func search(term: String, types: [String] = ["Movie", "Series", "Episode"], limit: Int = 60) async throws -> [BaseItem] {
