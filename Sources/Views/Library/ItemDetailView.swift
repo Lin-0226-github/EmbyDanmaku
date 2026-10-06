@@ -463,45 +463,59 @@ struct ItemSourceSheet: View {
     @State private var matches: [Match] = []
     @State private var isSearching = true
     @State private var searchTerm = ""
+    @State private var hasSearched = false
 
     var body: some View {
         NavigationView {
             ZStack {
                 AppTheme.background.ignoresSafeArea()
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("在其他已登录的服务器上搜索「\(searchTerm)」，点击即可切换到该服务器播放。")
-                            .font(.system(size: 12))
-                            .foregroundStyle(AppTheme.textTertiary)
-
-                        if isSearching {
-                            HStack {
-                                Spacer()
-                                ProgressView("正在搜索其他服务器…")
-                                Spacer()
-                            }
-                            .padding(.vertical, 40)
-                        } else if matches.isEmpty {
-                            EmptyStateView(systemImage: "arrow.left.arrow.right.circle",
-                                           title: "其他服务器没有找到这部影片",
-                                           subtitle: "只有已登录（有保存凭据）的服务器会被搜索")
-                        } else {
-                            ForEach(matches) { m in
-                                matchRow(m)
-                            }
-                        }
-                    }
-                    .padding(16)
-                }
+                content
             }
             .navigationTitle("切换片源")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } }
             }
-            .task { await runSearch() }
         }
         .navigationViewStyle(.stack)
+        // 与搜索页一致的做法：同步入口里开 Task，不用 .task 修饰器
+        .onAppear { startSearch() }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("在其他已登录的服务器上搜索「\(searchTerm)」，点击即可切换到该服务器播放。")
+                    .font(.system(size: 12))
+                    .foregroundStyle(AppTheme.textTertiary)
+
+                if isSearching {
+                    HStack {
+                        Spacer()
+                        ProgressView("正在搜索其他服务器…")
+                        Spacer()
+                    }
+                    .padding(.vertical, 40)
+                } else if matches.isEmpty {
+                    EmptyStateView(systemImage: "arrow.left.arrow.right.circle",
+                                   title: "其他服务器没有找到这部影片",
+                                   subtitle: "只有已登录（有保存凭据）的服务器会被搜索")
+                } else {
+                    ForEach(matches) { m in
+                        matchRow(m)
+                    }
+                }
+            }
+            .padding(16)
+        }
+    }
+
+    /// 同步入口：内部开 Task 执行异步搜索（避免 .task 修饰器带来的并发检查问题）
+    private func startSearch() {
+        guard !hasSearched else { return }
+        hasSearched = true
+        Task { await runSearch() }
     }
 
     private func matchRow(_ m: Match) -> some View {
