@@ -94,7 +94,8 @@ final class EmbyClient {
         return "Emby Client=\"\(clientName)\", Device=\"\(deviceName)\", DeviceId=\"\(deviceId)\", Version=\"\(clientVersion)\""
     }
 
-    private func request(path: String, query: [String: String] = [:]) throws -> URLRequest {
+    /// 构造带鉴权头的 GET 请求（EmbyPlayback 的 Reporter 也需要用）
+    func request(path: String, query: [String: String] = [:]) throws -> URLRequest {
         guard var comps = URLComponents(string: serverURL + path) else { throw EmbyError.invalidURL }
         var items: [URLQueryItem] = comps.queryItems ?? []
         for (k, v) in query where !v.isEmpty {
@@ -113,7 +114,7 @@ final class EmbyClient {
         return req
     }
 
-    private func send(_ req: URLRequest) async throws -> (Data, HTTPURLResponse) {
+    func send(_ req: URLRequest) async throws -> (Data, HTTPURLResponse) {
         let (data, resp) = try await session.data(for: req)
         guard let http = resp as? HTTPURLResponse else { throw EmbyError.badStatus(-1, "无响应") }
         guard (200..<300).contains(http.statusCode) else {
@@ -133,7 +134,7 @@ final class EmbyClient {
         }
     }
 
-    private func post<T: Decodable, B: Encodable>(_ path: String, body: B, query: [String: String] = [:], as type: T.Type = T.self) async throws -> T {
+    func post<T: Decodable, B: Encodable>(_ path: String, body: B, query: [String: String] = [:], as type: T.Type = T.self) async throws -> T {
         var req = try request(path: path, query: query)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")

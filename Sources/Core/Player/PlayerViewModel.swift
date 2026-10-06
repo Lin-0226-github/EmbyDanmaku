@@ -258,9 +258,9 @@ final class PlayerViewModel: ObservableObject {
 
         // 默认选中：服务器指定的默认字幕，否则第一条中文字幕
         if selectedSubtitleID == nil {
-            if let def = plan.subtitleTracks.first(where: { $0.isDefault && $0.url != nil }) {
+            if let def = plan?.subtitleTracks.first(where: { $0.isDefault && $0.url != nil }) {
                 selectedSubtitleID = "ext\(def.index)"
-            } else if let zh = plan.subtitleTracks.first(where: { ($0.language ?? "").contains("中文") && $0.url != nil }) {
+            } else if let zh = plan?.subtitleTracks.first(where: { ($0.language ?? "").contains("中文") && $0.url != nil }) {
                 selectedSubtitleID = "ext\(zh.index)"
             }
         }

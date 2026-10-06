@@ -78,7 +78,7 @@ struct BaseItem: Codable, Identifiable, Hashable {
     let OriginalTitle: String?
     let SortName: String?
     let Overview: String?
-    let Type: String?              // Movie / Series / Season / Episode / Folder / CollectionFolder
+    let ItemType: String?          // Movie / Series / Season / Episode / Folder / CollectionFolder（JSON 键 "Type"）
     let MediaType: String?         // Video / Audio / Photo
     let SeriesName: String?
     let SeasonName: String?
@@ -117,18 +117,32 @@ struct BaseItem: Codable, Identifiable, Hashable {
     let ExternalUrls: [ExternalUrl]?
     let ProviderIds: [String: String]?
 
+    enum CodingKeys: String, CodingKey {
+        case Id, Name, OriginalTitle, SortName, Overview
+        case ItemType = "Type"
+        case MediaType, SeriesName, SeasonName, SeriesId, SeasonId, ParentId
+        case IndexNumber, ParentIndexNumber, ProductionYear, PremiereDate, EndDate
+        case CommunityRating, CriticRating, OfficialRating, RunTimeTicks
+        case Genres, Studios, Tags, People, ImageTags, BackdropImageTags
+        case SeriesPrimaryImageTag, ParentPrimaryImageItemId
+        case ParentBackdropItemId, ParentBackdropImageTags
+        case PrimaryImageAspectRatio, UserData, ChildCount, RecursiveItemCount
+        case MediaSources, MediaStreams, CollectionType, LocationType, DateCreated
+        case Taglines, ExternalUrls, ProviderIds
+    }
+
     // MARK: 派生属性
 
     var isFolder: Bool {
-        guard let t = Type else { return false }
+        guard let t = ItemType else { return false }
         return t == "Folder" || t == "CollectionFolder" || t == "Series" || t == "Season" || t == "BoxSet" || t == "UserView"
     }
 
-    var isMovie: Bool { Type == "Movie" || Type == "Video" }
-    var isSeries: Bool { Type == "Series" }
-    var isSeason: Bool { Type == "Season" }
-    var isEpisode: Bool { Type == "Episode" }
-    var isPlayable: Bool { isMovie || isEpisode || Type == "Video" || Type == "TvChannel" || Type == "Program" || Type == "MusicVideo" }
+    var isMovie: Bool { ItemType == "Movie" || ItemType == "Video" }
+    var isSeries: Bool { ItemType == "Series" }
+    var isSeason: Bool { ItemType == "Season" }
+    var isEpisode: Bool { ItemType == "Episode" }
+    var isPlayable: Bool { isMovie || isEpisode || ItemType == "Video" || ItemType == "TvChannel" || ItemType == "Program" || ItemType == "MusicVideo" }
 
     /// 展示标题：剧集显示 "S1E5 标题"
     var displayTitle: String {
@@ -187,8 +201,13 @@ struct EmbyPerson: Codable, Hashable, Identifiable {
     let Id: String?
     let Name: String?
     let Role: String?
-    let Type: String?
+    let ItemType: String?
     let PrimaryImageTag: String?
+
+    enum CodingKeys: String, CodingKey {
+        case Id, Name, Role, PrimaryImageTag
+        case ItemType = "Type"
+    }
 }
 
 struct ExternalUrl: Codable, Hashable {
@@ -233,13 +252,13 @@ struct MediaSource: Codable, Hashable, Identifiable {
     let RequiredHttpHeaders: [String: String]?
 
     var videoStream: MediaStream? {
-        MediaStreams?.first { ($0.Type ?? "") == "Video" }
+        MediaStreams?.first { ($0.ItemType ?? "") == "Video" }
     }
     var audioStreams: [MediaStream] {
-        (MediaStreams ?? []).filter { ($0.Type ?? "") == "Audio" }
+        (MediaStreams ?? []).filter { ($0.ItemType ?? "") == "Audio" }
     }
     var subtitleStreams: [MediaStream] {
-        (MediaStreams ?? []).filter { ($0.Type ?? "") == "Subtitle" }
+        (MediaStreams ?? []).filter { ($0.ItemType ?? "") == "Subtitle" }
     }
     var durationSeconds: Double {
         guard let t = RunTimeTicks, t > 0 else { return 0 }
@@ -250,7 +269,7 @@ struct MediaSource: Codable, Hashable, Identifiable {
 struct MediaStream: Codable, Hashable, Identifiable {
     var id: Int { Index }
     let Index: Int
-    let Type: String?
+    let ItemType: String?
     let Codec: String?
     let Language: String?
     let DisplayTitle: String?
@@ -274,6 +293,15 @@ struct MediaStream: Codable, Hashable, Identifiable {
     let RealFrameRate: Double?
     let VideoRange: String?
 
+    enum CodingKeys: String, CodingKey {
+        case Index, Codec, Language, DisplayTitle, Title
+        case Channels, SampleRate, BitRate, Width, Height
+        case IsDefault, IsForced, IsExternal, IsTextSubtitleStream, SupportsExternalStream
+        case DeliveryUrl, Path, CodecTag, Profile, Level
+        case AverageFrameRate, RealFrameRate, VideoRange
+        case ItemType = "Type"
+    }
+
     /// 展示名：优先使用服务器给的 DisplayTitle，否则自己拼一个
     var displayName: String {
         if let d = DisplayTitle, !d.isEmpty { return d }
@@ -281,7 +309,7 @@ struct MediaStream: Codable, Hashable, Identifiable {
         if let lang = displayLanguage, !lang.isEmpty { parts.append(lang) }
         if let t = Title, !t.isEmpty, t != langName { parts.append(t) }
         if let c = Codec { parts.append(c.uppercased()) }
-        if Type == "Audio", let ch = Channels { parts.append(chName(ch)) }
+        if ItemType == "Audio", let ch = Channels { parts.append(chName(ch)) }
         return parts.isEmpty ? "轨道 \(Index)" : parts.joined(separator: " · ")
     }
 

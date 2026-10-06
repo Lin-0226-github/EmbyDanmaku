@@ -31,19 +31,19 @@ struct DeviceProfile: Encodable {
             DirectPlayProfiles: [
                 // 完整容器直连：mp4 / m4v / mov
                 DirectPlayProfile(Container: "mp4,m4v,mov",
-                                  Type: "Video",
+                                  profileType: "Video",
                                   VideoCodec: DeviceCapability.videoCodecs.joined(separator: ","),
                                   AudioCodec: DeviceCapability.audioCodecs.joined(separator: ","))
             ],
             TranscodingProfiles: [
-                TranscodingProfile(Container: "ts", Type: "Video", `Protocol`: "hls",
+                TranscodingProfile(Container: "ts", profileType: "Video", `Protocol`: "hls",
                                    VideoCodec: "h264", AudioCodec: "aac",
                                    AudioChannels: "2", SubProtocol: "hls",
                                    TranscodeSeekInfo: "Auto", Context: "Streaming",
                                    BreakOnNonKeyFrames: false, MaxAudioChannels: "2",
                                    MinSegments: "1", SegmentLength: "6"),
                 // 兜底：渐进式下载流
-                TranscodingProfile(Container: "mp4", Type: "Video", `Protocol`: "http",
+                TranscodingProfile(Container: "mp4", profileType: "Video", `Protocol`: "http",
                                    VideoCodec: "h264", AudioCodec: "aac",
                                    AudioChannels: "2", SubProtocol: nil,
                                    TranscodeSeekInfo: "Auto", Context: "Streaming",
@@ -67,7 +67,7 @@ struct DeviceProfile: Encodable {
                 SubtitleProfile(Format: "pgs", Method: "Encode")
             ],
             ResponseProfiles: [
-                ResponseProfile(Container: "m4v", Type: "Video", MimeType: "video/mp4")
+                ResponseProfile(Container: "m4v", profileType: "Video", MimeType: "video/mp4")
             ]
         )
     }
@@ -75,14 +75,19 @@ struct DeviceProfile: Encodable {
 
 struct DirectPlayProfile: Encodable {
     let Container: String
-    let `Type`: String
+    let profileType: String
     let VideoCodec: String
     let AudioCodec: String
+
+    enum CodingKeys: String, CodingKey {
+        case Container, VideoCodec, AudioCodec
+        case profileType = "Type"
+    }
 }
 
 struct TranscodingProfile: Encodable {
     let Container: String
-    let `Type`: String
+    let profileType: String
     let `Protocol`: String
     let VideoCodec: String
     let AudioCodec: String
@@ -94,17 +99,35 @@ struct TranscodingProfile: Encodable {
     let MaxAudioChannels: String
     let MinSegments: String?
     let SegmentLength: String?
+
+    enum CodingKeys: String, CodingKey {
+        case Container, VideoCodec, AudioCodec, AudioChannels, SubProtocol
+        case TranscodeSeekInfo, Context, BreakOnNonKeyFrames, MaxAudioChannels
+        case MinSegments, SegmentLength
+        case `Protocol`
+        case profileType = "Type"
+    }
 }
 
 struct ContainerProfile: Encodable {
-    let Type: String
+    let profileType: String
     let Conditions: [ProfileCondition]
+
+    enum CodingKeys: String, CodingKey {
+        case Conditions
+        case profileType = "Type"
+    }
 }
 
 struct CodecProfile: Encodable {
-    let Type: String
+    let profileType: String
     let Codec: String?
     let Conditions: [ProfileCondition]
+
+    enum CodingKeys: String, CodingKey {
+        case Codec, Conditions
+        case profileType = "Type"
+    }
 }
 
 struct ProfileCondition: Encodable {
@@ -121,8 +144,13 @@ struct SubtitleProfile: Encodable {
 
 struct ResponseProfile: Encodable {
     let Container: String?
-    let Type: String
+    let profileType: String
     let MimeType: String?
+
+    enum CodingKeys: String, CodingKey {
+        case Container, MimeType
+        case profileType = "Type"
+    }
 }
 
 // MARK: - 播放信息请求

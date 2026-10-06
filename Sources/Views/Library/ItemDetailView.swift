@@ -270,7 +270,7 @@ struct ItemDetailView: View {
                                 .font(.caption2)
                                 .lineLimit(1)
                                 .frame(width: 70)
-                            Text(p.Role ?? p.Type ?? "")
+                            Text(p.Role ?? p.ItemType ?? "")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
