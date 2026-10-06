@@ -47,7 +47,7 @@ final class PlayerViewModel: ObservableObject {
     @Published private(set) var duration: Double = 0
     @Published private(set) var loadedDuration: Double = 0
     @Published private(set) var playbackRate: Float = 1.0
-    @Published private(set) var errorMessage: String?
+    @Published var errorMessage: String?
     @Published private(set) var plan: PlaybackPlan?
     @Published var videoGravity: AVLayerVideoGravity = .resizeAspect
     /// 定时关闭触发后的提示文案（非空即弹提示）

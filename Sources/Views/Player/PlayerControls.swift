@@ -109,7 +109,7 @@ struct PlayerControls: View {
             }
 
             ScrubberView(value: Binding(get: { vm.currentTime },
-                                        set: { Task { await vm.seek(to: $0) } }),
+                                        set: { newValue in Task { await vm.seek(to: newValue) } }),
                          duration: vm.duration,
                          buffered: vm.loadedDuration)
 
