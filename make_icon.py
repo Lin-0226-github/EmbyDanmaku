@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-生成 Lplayers 应用图标（v23，按用户提供的参考图重做）：
+生成 Lplayers 应用图标（v24：整体放大，圆环更粗、播放三角更大）：
 白色底 + 靛蓝→紫→品红→橙 的锥形渐变圆环（带立体明暗）+ 白色圆润播放三角。
 输出 1024 主图，并按 AppIcon.appiconset 需要的尺寸缩放。
 """
@@ -19,8 +19,8 @@ W = S * SS
 BG = (246, 246, 249, 255)   # 白底（参考图的浅白）
 
 CX = CY = W / 2.0
-R_OUTER = 240 * SS
-R_INNER = 148 * SS
+R_OUTER = 310 * SS
+R_INNER = 196 * SS
 
 # 圆环锥形渐变色标（PIL/numpy 角度：0°=正右，顺时针增加）
 STOPS = [
@@ -71,11 +71,17 @@ def build_ring():
     shade = 0.82 + 0.18 * t
     rgb = rgb * shade[:, :, None]
 
-    # 『环叠环』：150°~255° 一段整体加深，边界柔和过渡，模拟参考图的圆环自叠
-    def soft_band(a, lo, hi, feather=14.0):
-        d = np.minimum(np.abs(a - lo), np.abs(a - hi))
-        d = np.minimum(d, 360.0 - d)
-        return np.clip(1.0 - d / feather, 0.0, 1.0)
+    # 『环叠环』：150°~255° 一段整体加深，两端用 smoothstep 平滑过渡，模拟参考图的圆环自叠
+    def smoothstep(x):
+        x = np.clip(x, 0.0, 1.0)
+        return x * x * (3.0 - 2.0 * x)
+
+    def soft_band(a, lo, hi, feather=26.0):
+        span = (hi - lo) % 360.0
+        d = (a - lo) % 360.0                 # 距起始角的顺时针距离
+        rise = smoothstep(d / feather)       # 进入段渐入
+        fall = smoothstep((span - d) / feather)  # 退出段渐出
+        return rise * fall
 
     band = soft_band(ang, 150.0, 255.0)
     rgb = rgb * (1.0 - 0.16 * band[:, :, None])
@@ -132,10 +138,10 @@ def build_master():
     img = Image.alpha_composite(img, ring_img)
 
     # 4) 白色播放三角（右尖角恰好搭在环内缘上，参考图同款比例）
-    tri = [(660 * SS, 512 * SS), (420 * SS, 384 * SS), (420 * SS, 640 * SS)]
+    tri = [(708 * SS, 512 * SS), (390 * SS, 342 * SS), (390 * SS, 682 * SS)]
     tri_mask = Image.new("L", (W, W), 0)
     dm = ImageDraw.Draw(tri_mask)
-    rounded_solid_triangle(dm, tri, corner=40 * SS)
+    rounded_solid_triangle(dm, tri, corner=52 * SS)
 
     tri_shadow_src = tri_mask.filter(ImageFilter.GaussianBlur(7 * SS))
     tri_shadow = Image.new("RGBA", (W, W), (0, 0, 0, 0))

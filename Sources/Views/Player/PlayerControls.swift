@@ -82,11 +82,12 @@ struct PlayerControls: View {
         HStack(spacing: 10) {
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 17, weight: .medium))
+                    .font(.system(size: 20, weight: .medium))
                     .foregroundStyle(.white)
-                    .frame(minWidth: 34, minHeight: 44)
+                    .frame(minWidth: 44, minHeight: 44)
             }
             .contentShape(Rectangle())
+            .accessibilityLabel("关闭")
             .buttonStyle(PlayerPressStyle())
 
             topButton(vm.videoGravity == .resizeAspect
@@ -145,16 +146,14 @@ struct PlayerControls: View {
                            tint: Color = .white,
                            action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            VStack(spacing: 3) {
-                Image(systemName: safeSymbol(systemImage, fallback: fallback))
-                    .font(.system(size: 16, weight: .medium))
-                Text(label)
-                    .font(.system(size: 9, weight: .medium))
-            }
-            .foregroundStyle(tint)
-            .frame(minWidth: 34, minHeight: 44)
+            Image(systemName: safeSymbol(systemImage, fallback: fallback))
+                .font(.system(size: 20, weight: .medium))
+                .foregroundStyle(tint)
+                // 只留图标：文字标签去掉，点击区域反而放大到 44×44，更好按
+                .frame(minWidth: 44, minHeight: 44)
         }
         .contentShape(Rectangle())
+        .accessibilityLabel(label)
         .buttonStyle(PlayerPressStyle())
     }
 
@@ -331,18 +330,13 @@ struct PlayerControls: View {
                               tint: Color = .white,
                               action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            VStack(spacing: 3) {
-                Image(systemName: safeSymbol(systemImage, fallback: fallback))
-                    .font(.system(size: 17))
-                Text(label)
-                    .font(.system(size: 9, weight: .medium))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            }
-            .foregroundStyle(tint)
-            .frame(minWidth: 36, minHeight: 44)
+            Image(systemName: safeSymbol(systemImage, fallback: fallback))
+                .font(.system(size: 21, weight: .medium))
+                .foregroundStyle(tint)
+                .frame(minWidth: 44, minHeight: 44)
         }
         .contentShape(Rectangle())
+        .accessibilityLabel(label)
         .buttonStyle(PlayerPressStyle())
     }
 

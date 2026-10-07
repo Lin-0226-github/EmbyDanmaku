@@ -217,6 +217,9 @@ struct PlayerView: View {
                 .allowsHitTesting(false)
         }
         .statusBarHidden(true)
+        // 横屏时让系统手势「让位」：底部第一次上滑只唤出小白条提示，需再滑一次才回主屏，
+        // 避免看剧时手一蹭就退出 App。（竖屏不生效，保持系统默认）
+        .defersSystemGestures(on: isLandscape ? .bottom : Edge.Set())
         .onAppear {
             scheduleControlsHide()
             recordHistory()
