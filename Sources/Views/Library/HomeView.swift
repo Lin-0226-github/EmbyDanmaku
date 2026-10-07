@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct HomeView: View {
     @EnvironmentObject private var appState: AppState
@@ -160,61 +161,84 @@ struct HomeView: View {
         }
     }
 
+    /// 注意：这里必须用 GeometryReader 显式给定宽度。
+    /// `RemoteImageView` 内部是 .resizable().aspectRatio(contentMode: .fill)，
+    /// 「fill」返回的是「能盖住所给尺寸的最小外接尺寸」，会比父视图更宽（例如 470pt 高、16:9 图 → 835pt 宽），
+    /// 而 .clipped() 只裁剪显示、不改变 layout 尺寸，于是 ZStack 被撑到 835pt，底部文字跟着跑到屏幕外面。
     private func heroCard(_ item: BaseItem) -> some View {
-        ZStack(alignment: .bottom) {
-            RemoteImageView(url: backdropURL(item),
-                            placeholderSystemImage: "photo")
-                .frame(maxWidth: .infinity)
-                .frame(height: 470)
-                .clipped()
-                .overlay(
-                    LinearGradient(colors: [.clear, .clear, AppTheme.background.opacity(0.82), AppTheme.background],
-                                   startPoint: .top, endPoint: .bottom)
-                )
+        GeometryReader { geo in
+            let width = geo.size.width > 1 ? geo.size.width : UIScreen.main.bounds.width
+            let height: CGFloat = 470
 
-            // 底部信息（行数受限，保证不被裁切）
-            VStack(alignment: .leading, spacing: 7) {
-                Text(item.Name ?? "")
-                    .font(.system(size: 23, weight: .bold))
-                    .foregroundStyle(.white)
-                    .lineLimit(2)
+            ZStack(alignment: .bottomLeading) {
+                RemoteImageView(url: backdropURL(item),
+                                placeholderSystemImage: "photo")
+                    .frame(width: width, height: height)
+                    .clipped()
+                    .overlay(
+                        LinearGradient(colors: [.clear, .clear,
+                                                AppTheme.background.opacity(0.82),
+                                                AppTheme.background],
+                                       startPoint: .top, endPoint: .bottom)
+                    )
+                    .allowsHitTesting(false)
 
-                HStack(spacing: 10) {
-                    if let r = item.CommunityRating {
-                        HStack(spacing: 3) {
-                            Image(systemName: "star.fill")
-                                .font(.system(size: 11))
-                                .foregroundStyle(AppTheme.accent)
-                            Text(String(format: "%.1f", r))
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(.white)
-                        }
-                    }
-                    if let g = item.Genres?.names.first {
-                        Text(g)
-                            .font(.system(size: 13))
-                            .foregroundStyle(.white.opacity(0.85))
-                    }
-                    if let y = item.ProductionYear {
-                        Text(String(y))
-                            .font(.system(size: 13))
-                            .foregroundStyle(.white.opacity(0.85))
+                // 底部信息：宽度锁死为容器宽度，绝不跟着图片撑出去
+                heroText(item)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 14)
+                    .frame(width: width, alignment: .leading)
+            }
+            .frame(width: width, height: height)
+            .clipped()
+        }
+        .frame(height: 470)
+        .clipped()
+        .contentShape(Rectangle())
+        .contextMenu { itemMenu(item) }
+    }
+
+    private func heroText(_ item: BaseItem) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(item.Name ?? "")
+                .font(.system(size: 23, weight: .bold))
+                .foregroundStyle(.white)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 10) {
+                if let r = item.CommunityRating {
+                    HStack(spacing: 3) {
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(AppTheme.accent)
+                        Text(String(format: "%.1f", r))
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.white)
                     }
                 }
-
-                if let ov = item.Overview, !ov.isEmpty {
-                    Text(ov)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.white.opacity(0.62))
-                        .lineLimit(2)
-                        .lineSpacing(3)
+                if let g = item.Genres?.names.first {
+                    Text(g)
+                        .font(.system(size: 13))
+                        .foregroundStyle(.white.opacity(0.85))
+                        .lineLimit(1)
+                }
+                if let y = item.ProductionYear {
+                    Text(String(y))
+                        .font(.system(size: 13))
+                        .foregroundStyle(.white.opacity(0.85))
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 14)
-            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let ov = item.Overview, !ov.isEmpty {
+                Text(ov)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .lineLimit(2)
+                    .lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
-        .contextMenu { itemMenu(item) }
     }
 
     // MARK: - 我的媒体
@@ -251,34 +275,41 @@ struct HomeView: View {
     }
 
     private func mediaTile(_ v: BaseItem) -> some View {
-        ZStack(alignment: .bottomLeading) {
-            RemoteImageView(url: backdropURL(v), placeholderSystemImage: "square.grid.2x2")
-                .frame(height: 110)
-                .frame(maxWidth: .infinity)
-                .clipped()
-                .overlay(
-                    LinearGradient(colors: [.clear, .black.opacity(0.62)],
-                                   startPoint: .center, endPoint: .bottom)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(AppTheme.hairline, lineWidth: 1)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        // 同样用显式宽度锁住 .fill 图片，避免把网格单元撑宽
+        GeometryReader { geo in
+            let width = geo.size.width > 1 ? geo.size.width : 160
+            ZStack(alignment: .bottomLeading) {
+                RemoteImageView(url: backdropURL(v), placeholderSystemImage: "square.grid.2x2")
+                    .frame(width: width, height: 110)
+                    .clipped()
+                    .overlay(
+                        LinearGradient(colors: [.clear, .black.opacity(0.62)],
+                                       startPoint: .center, endPoint: .bottom)
+                    )
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(v.Name ?? "")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                if let c = v.RecursiveItemCount, c > 0 {
-                    Text("\(c) 项")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.white.opacity(0.72))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(v.Name ?? "")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                    if let c = v.RecursiveItemCount, c > 0 {
+                        Text("\(c) 项")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.white.opacity(0.72))
+                    }
                 }
+                .padding(10)
+                .frame(width: width, alignment: .leading)
             }
-            .padding(10)
+            .frame(width: width, height: 110)
+            .clipped()
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(AppTheme.hairline, lineWidth: 1)
+            )
         }
+        .frame(height: 110)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     @ViewBuilder

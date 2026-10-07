@@ -15,6 +15,16 @@ struct PlayerSettingsPanel: View {
     @ObservedObject var vm: PlayerViewModel
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.dismiss) private var dismiss
+    /// 宿主提供的关闭动作（内嵌浮层模式）；为 nil 时回退到系统 dismiss
+    var onClose: (() -> Void)? = nil
+
+    private func close() {
+        if let c = onClose {
+            c()
+        } else {
+            dismiss()
+        }
+    }
 
     @State private var tab: Tab = .playback
 
@@ -37,7 +47,7 @@ struct PlayerSettingsPanel: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("完成") {
                         vm.refreshDanmakuSettings()
-                        dismiss()
+                        close()
                     }
                 }
             }
@@ -188,13 +198,23 @@ struct PlayerSettingsPanel: View {
 struct EpisodePanel: View {
     @ObservedObject var vm: PlayerViewModel
     @Environment(\.dismiss) private var dismiss
+    /// 宿主提供的关闭动作（内嵌浮层模式）；为 nil 时回退到系统 dismiss
+    var onClose: (() -> Void)? = nil
+
+    private func close() {
+        if let c = onClose {
+            c()
+        } else {
+            dismiss()
+        }
+    }
 
     var body: some View {
         NavigationView {
             List {
                 ForEach(vm.playlist) { ep in
                     Button {
-                        dismiss()
+                        close()
                         Task { await vm.switchTo(ep) }
                     } label: {
                         HStack(spacing: 10) {
@@ -225,7 +245,7 @@ struct EpisodePanel: View {
             .navigationTitle("选集")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("完成") { close() } }
             }
         }
         .navigationViewStyle(.stack)
@@ -237,6 +257,16 @@ struct EpisodePanel: View {
 struct DanmakuPanel: View {
     @ObservedObject var vm: PlayerViewModel
     @Environment(\.dismiss) private var dismiss
+    /// 宿主提供的关闭动作（内嵌浮层模式）；为 nil 时回退到系统 dismiss
+    var onClose: (() -> Void)? = nil
+
+    private func close() {
+        if let c = onClose {
+            c()
+        } else {
+            dismiss()
+        }
+    }
 
     @State private var keyword = ""
     @State private var showFileImporter = false
@@ -336,7 +366,7 @@ struct DanmakuPanel: View {
             .navigationTitle("弹幕")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("完成") { close() } }
             }
             .fileImporter(isPresented: $showFileImporter,
                           allowedContentTypes: [.xml, .json, .data],
@@ -387,6 +417,16 @@ struct ItemInfoPanel: View {
     @State private var detail: BaseItem?
     @State private var isLoading = true
     @Environment(\.dismiss) private var dismiss
+    /// 宿主提供的关闭动作（内嵌浮层模式）；为 nil 时回退到系统 dismiss
+    var onClose: (() -> Void)? = nil
+
+    private func close() {
+        if let c = onClose {
+            c()
+        } else {
+            dismiss()
+        }
+    }
 
     var body: some View {
         NavigationView {
@@ -447,7 +487,7 @@ struct ItemInfoPanel: View {
             .navigationTitle(item.Name ?? "详情")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("完成") { close() } }
             }
             .task { await load() }
         }
@@ -467,6 +507,16 @@ struct SourcePanel: View {
     @ObservedObject var vm: PlayerViewModel
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.dismiss) private var dismiss
+    /// 宿主提供的关闭动作（内嵌浮层模式）；为 nil 时回退到系统 dismiss
+    var onClose: (() -> Void)? = nil
+
+    private func close() {
+        if let c = onClose {
+            c()
+        } else {
+            dismiss()
+        }
+    }
 
     private let bitrateOptions: [(String, Int)] = [
         ("自动（60 Mbps）", 60_000_000),
@@ -540,7 +590,7 @@ struct SourcePanel: View {
             .navigationTitle("切换来源")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("完成") { close() } }
             }
         }
         .navigationViewStyle(.stack)
@@ -552,6 +602,16 @@ struct SourcePanel: View {
 struct SleepTimerPanel: View {
     @ObservedObject var timer: SleepTimer
     @Environment(\.dismiss) private var dismiss
+    /// 宿主提供的关闭动作（内嵌浮层模式）；为 nil 时回退到系统 dismiss
+    var onClose: (() -> Void)? = nil
+
+    private func close() {
+        if let c = onClose {
+            c()
+        } else {
+            dismiss()
+        }
+    }
 
     @State private var customMinutes: Double = 30
 
@@ -562,7 +622,7 @@ struct SleepTimerPanel: View {
                     ForEach(SleepTimer.presets, id: \.self) { m in
                         Button {
                             timer.start(minutes: m)
-                            dismiss()
+                            close()
                         } label: {
                             HStack {
                                 Text("\(m) 分钟后")
@@ -587,7 +647,7 @@ struct SleepTimerPanel: View {
                     }
                     Button {
                         timer.start(seconds: customMinutes * 60)
-                        dismiss()
+                        close()
                     } label: {
                         Text("开始倒计时")
                     }
@@ -596,7 +656,7 @@ struct SleepTimerPanel: View {
                 Section {
                     Button {
                         timer.startEndOfEpisode()
-                        dismiss()
+                        close()
                     } label: {
                         HStack {
                             Text("播完本集后停止")
@@ -609,7 +669,7 @@ struct SleepTimerPanel: View {
                     if timer.isActive {
                         Button("取消定时关闭", role: .destructive) {
                             timer.cancel()
-                            dismiss()
+                            close()
                         }
                     }
                 }
@@ -617,7 +677,7 @@ struct SleepTimerPanel: View {
             .navigationTitle("定时关闭")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("完成") { close() } }
             }
         }
         .navigationViewStyle(.stack)

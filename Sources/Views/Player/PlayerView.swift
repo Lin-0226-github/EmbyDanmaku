@@ -118,6 +118,8 @@ struct PlayerView: View {
     @State private var showDanmakuInput = false
     @State private var danmakuInputText = ""
     @State private var controlsTask: Task<Void, Never>?
+    @State private var toastText: String?
+    @State private var toastTask: Task<Void, Never>?
 
     init(client: EmbyClient, item: BaseItem, playlist: [BaseItem], startSeconds: Double?) {
         self.client = client
@@ -156,9 +158,10 @@ struct PlayerView: View {
                     if showControls {
                         PlayerControls(vm: vm,
                                        onDismiss: { closePlayer() },
-                                       onPanel: { activePanel = $0 },
+                                       onPanel: { openPanel($0) },
                                        onToggleDanmaku: { toggleDanmaku() },
-                                       onSendDanmaku: { showDanmakuInput = true })
+                                       onSendDanmaku: { showDanmakuInput = true },
+                                       onToast: { showToast($0) })
                             .transition(.opacity)
                     }
 
@@ -192,12 +195,19 @@ struct PlayerView: View {
         .onChange(of: vm.isPlaying) { playing in
             if playing { scheduleControlsHide() } else { controlsTask?.cancel() }
         }
-        .sheet(item: $activePanel) { panel in
-            panelView(panel)
-        }
+        .overlay { panelOverlay() }
         .overlay(alignment: .bottom) {
             if showDanmakuInput { danmakuInputBar }
         }
+        .overlay(alignment: .center) {
+            if let text = toastText {
+                toastView(text)
+                    .transition(.opacity)
+                    .allowsHitTesting(false)
+            }
+        }
+        .animation(.easeOut(duration: 0.22), value: activePanel?.id ?? "")
+        .animation(.easeOut(duration: 0.18), value: toastText)
         .alert("定时关闭", isPresented: Binding(get: { vm.sleepFiredMessage != nil },
                                                 set: { if !$0 { vm.sleepFiredMessage = nil } })) {
             Button("继续播放") { vm.play() }
@@ -399,16 +409,88 @@ struct PlayerView: View {
     }
 
     // MARK: - 面板
+    //
+    // 说明：iOS 15 上在 fullScreenCover 里再弹系统 .sheet 经常「点了没反应」，
+    // 所以这里全部改成**内嵌浮层**，由 activePanel 驱动，不再依赖系统 presentation。
+
+    private func openPanel(_ panel: PlayerPanel) {
+        controlsTask?.cancel()
+        withAnimation(.easeOut(duration: 0.22)) {
+            activePanel = panel
+            showControls = true
+        }
+    }
+
+    private func closePanel() {
+        withAnimation(.easeOut(duration: 0.22)) { activePanel = nil }
+        vm.refreshDanmakuSettings()
+        scheduleControlsHide()
+    }
+
+    @ViewBuilder
+    private func panelOverlay() -> some View {
+        if let panel = activePanel {
+            GeometryReader { geo in
+                ZStack(alignment: .bottom) {
+                    Color.black.opacity(0.5)
+                        .contentShape(Rectangle())
+                        .onTapGesture { closePanel() }
+
+                    VStack(spacing: 0) {
+                        Capsule()
+                            .fill(Color.white.opacity(0.32))
+                            .frame(width: 42, height: 4)
+                            .padding(.top, 8)
+                            .padding(.bottom, 2)
+                        panelView(panel).id(panel.id)
+                    }
+                    .frame(width: geo.size.width,
+                           height: max(360, geo.size.height * 0.62))
+                    .background(AppTheme.background)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    )
+                }
+                .frame(width: geo.size.width, height: geo.size.height)
+            }
+            .ignoresSafeArea(edges: .bottom)
+            .transition(.move(edge: .bottom))
+        }
+    }
 
     @ViewBuilder
     private func panelView(_ panel: PlayerPanel) -> some View {
         switch panel {
-        case .settings: PlayerSettingsPanel(vm: vm)
-        case .episodes: EpisodePanel(vm: vm)
-        case .danmaku: DanmakuPanel(vm: vm)
-        case .sleep: SleepTimerPanel(timer: vm.sleepTimer)
-        case .info: ItemInfoPanel(client: client, item: vm.item)
-        case .source: SourcePanel(vm: vm)
+        case .settings: PlayerSettingsPanel(vm: vm, onClose: { closePanel() })
+        case .episodes: EpisodePanel(vm: vm, onClose: { closePanel() })
+        case .danmaku: DanmakuPanel(vm: vm, onClose: { closePanel() })
+        case .sleep: SleepTimerPanel(timer: vm.sleepTimer, onClose: { closePanel() })
+        case .info: ItemInfoPanel(client: client, item: vm.item, onClose: { closePanel() })
+        case .source: SourcePanel(vm: vm, onClose: { closePanel() })
         }
+    }
+
+    // MARK: - 轻提示
+
+    private func showToast(_ text: String) {
+        toastTask?.cancel()
+        toastText = text
+        toastTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            guard !Task.isCancelled else { return }
+            toastText = nil
+        }
+    }
+
+    private func toastView(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 10)
+            .background(.black.opacity(0.66), in: Capsule())
+            .padding(.horizontal, 30)
     }
 }

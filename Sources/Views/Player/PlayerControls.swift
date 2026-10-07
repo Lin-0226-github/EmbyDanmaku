@@ -20,24 +20,54 @@ struct PlayerControls: View {
     var onPanel: (PlayerView.PlayerPanel) -> Void
     var onToggleDanmaku: () -> Void
     var onSendDanmaku: () -> Void
+    /// 轻提示（iOS 15 下不要再指望系统 sheet，直接给一次可见反馈）
+    var onToast: (String) -> Void
 
     @State private var copied = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            topBar
-            Spacer()
-            centerRow
-            Spacer()
-            bottomBar
+        ZStack {
+            // 渐变蒙层：只负责让按钮在任何画面上都看得清，完全不参与点击
+            scrimLayer
+                .allowsHitTesting(false)
+
+            // 顶栏
+            VStack(spacing: 0) {
+                topBar
+                Spacer().allowsHitTesting(false)
+            }
+
+            // 中部播放控制
+            VStack(spacing: 0) {
+                Spacer().allowsHitTesting(false)
+                centerRow
+                Spacer().allowsHitTesting(false)
+            }
+
+            // 底栏
+            VStack(spacing: 0) {
+                Spacer().allowsHitTesting(false)
+                bottomBar
+            }
         }
         .foregroundStyle(.white)
-        .background {
-            LinearGradient(colors: [.black.opacity(0.72), .clear, .clear, .black.opacity(0.85)],
+        // 注意：这里刻意不对整屏设置 contentShape，
+        // 空白区域的点击要穿透到下层手势层（单击显隐控制层 / 双击播放暂停）
+    }
+
+    /// 上下各压一层渐变，保证白色按钮在亮画面上依然清晰
+    private var scrimLayer: some View {
+        VStack(spacing: 0) {
+            LinearGradient(colors: [Color.black.opacity(0.85),
+                                    Color.black.opacity(0.45),
+                                    .clear],
                            startPoint: .top, endPoint: .bottom)
-                .allowsHitTesting(false)
+                .frame(height: 140)
+            Spacer(minLength: 0)
+            LinearGradient(colors: [.clear, Color.black.opacity(0.9)],
+                           startPoint: .top, endPoint: .bottom)
+                .frame(height: 300)
         }
-        // 注意：这里刻意不设置 contentShape，让空白区域的点击穿透到下层手势层
     }
 
     // MARK: - 顶栏
@@ -48,24 +78,30 @@ struct PlayerControls: View {
                 Image(systemName: "xmark")
                     .font(.system(size: 17, weight: .medium))
                     .foregroundStyle(.white)
-                    .frame(width: 30, height: 34)
+                    .frame(minWidth: 40, minHeight: 44)
             }
+            .contentShape(Rectangle())
             .buttonStyle(.plain)
 
             topButton(vm.videoGravity == .resizeAspect
                       ? "arrow.up.left.and.arrow.down.right" : "aspectratio.fill",
+                      fallback: "aspectratio",
                       "画面") {
                 vm.toggleGravity()
+                onToast(vm.videoGravity == .resizeAspect ? "画面：适应" : "画面：填充")
             }
             topButton(settings.danmakuEnabled ? "text.bubble.fill" : "text.bubble",
+                      fallback: settings.danmakuEnabled ? "bubble.left.fill" : "bubble.left",
                       "弹幕",
                       tint: settings.danmakuEnabled ? AppTheme.accent : .white) {
                 onToggleDanmaku()
+                onToast(settings.danmakuEnabled ? "弹幕已开启" : "弹幕已关闭")
             }
-            topButton("moon.zzz", "定时", tint: vm.sleepActive ? .yellow : .white) {
+            topButton("moon.zzz", fallback: "moon.fill", "定时", tint: vm.sleepActive ? .yellow : .white) {
                 onPanel(.sleep)
             }
             topButton(copied ? "checkmark" : "doc.on.doc",
+                      fallback: "link",
                       copied ? "已复制" : "链接",
                       tint: copied ? AppTheme.success : .white) {
                 copyLink()
@@ -77,25 +113,33 @@ struct PlayerControls: View {
                     .foregroundStyle(.white.opacity(0.9))
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 10)
+        .padding(.horizontal, 12)
+        .padding(.top, 6)
     }
 
-    /// 顶栏按钮：图标 + 小字标签，让每个按钮的功能一目了然
+    /// 图标名称兜底：该 SF Symbol 在当前系统字体里不存在时，换一个一定存在的，
+    /// 避免出现「只剩文字、没有图标」的情况。
+    private func safeSymbol(_ primary: String, fallback: String) -> String {
+        UIImage(systemName: primary) != nil ? primary : fallback
+    }
+
+    /// 顶栏按钮：图标 + 小字标签，点击区域放大到 40×44，保证 iOS 15 上一定按得动
     private func topButton(_ systemImage: String,
+                           fallback: String,
                            _ label: String,
                            tint: Color = .white,
                            action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 3) {
-                Image(systemName: systemImage)
+                Image(systemName: safeSymbol(systemImage, fallback: fallback))
                     .font(.system(size: 16, weight: .medium))
                 Text(label)
                     .font(.system(size: 9, weight: .medium))
             }
             .foregroundStyle(tint)
-            .frame(minWidth: 32)
+            .frame(minWidth: 40, minHeight: 44)
         }
+        .contentShape(Rectangle())
         .buttonStyle(.plain)
     }
 
@@ -108,45 +152,50 @@ struct PlayerControls: View {
     private func copyLink() {
         UIPasteboard.general.string = vm.plan?.url.absoluteString ?? ""
         copied = true
+        onToast("播放链接已复制")
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
     }
 
     // MARK: - 中部
 
     private var centerRow: some View {
-        HStack(spacing: 64) {
+        HStack(spacing: 56) {
             Button {
                 Task { await vm.seek(to: max(0, vm.currentTime - 10)) }
             } label: {
-                Image(systemName: "gobackward.10")
+                Image(systemName: safeSymbol("gobackward.10", fallback: "gobackward"))
                     .font(.system(size: 34, weight: .light))
+                    .frame(minWidth: 48, minHeight: 48)
             }
+            .contentShape(Rectangle())
             .buttonStyle(.plain)
 
             Group {
                 if vm.isBuffering {
-                    VStack(spacing: 4) {
-                        ProgressView()
-                            .progressViewStyle(.circular)
-                            .tint(.white)
-                            .scaleEffect(1.1)
-                    }
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .tint(.white)
+                        .scaleEffect(1.1)
+                        .frame(width: 48, height: 48)
                 } else {
                     Button { vm.togglePlay() } label: {
                         Image(systemName: vm.isPlaying ? "pause.fill" : "play.fill")
                             .font(.system(size: 32, weight: .medium))
+                            .frame(minWidth: 48, minHeight: 48)
                     }
+                    .contentShape(Rectangle())
                     .buttonStyle(.plain)
                 }
             }
-            .frame(width: 44)
 
             Button {
                 Task { await vm.seek(to: vm.currentTime + 10) }
             } label: {
-                Image(systemName: "goforward.10")
+                Image(systemName: safeSymbol("goforward.10", fallback: "goforward"))
                     .font(.system(size: 34, weight: .light))
+                    .frame(minWidth: 48, minHeight: 48)
             }
+            .contentShape(Rectangle())
             .buttonStyle(.plain)
         }
     }
@@ -182,31 +231,32 @@ struct PlayerControls: View {
                         .lineLimit(1)
                 }
                 Spacer(minLength: 12)
-                HStack(spacing: 16) {
+                HStack(spacing: 6) {
                     if vm.playlist.count > 1 {
-                        bottomButton("backward.end.fill", "上一集",
+                        bottomButton("backward.end.fill", fallback: "chevron.left.circle.fill", "上一集",
                                      tint: vm.previousItem() == nil ? .white.opacity(0.3) : .white) {
                             vm.playPrevious()
                         }
                         .disabled(vm.previousItem() == nil)
                     }
                     if vm.playlist.count > 1 {
-                        bottomButton("forward.end.fill", "下一集",
+                        bottomButton("forward.end.fill", fallback: "chevron.right.circle.fill", "下一集",
                                      tint: vm.nextItem() == nil ? .white.opacity(0.3) : .white) {
                             vm.playNext()
                         }
                         .disabled(vm.nextItem() == nil)
                     }
-                    bottomButton("speedometer", rateLabel) {
+                    bottomButton("speedometer", fallback: "gauge", rateLabel) {
                         cycleRate()
                     }
-                    bottomButton("ellipsis.message", "弹幕") {
+                    // 弹幕库：选择/搜索弹幕来源，与顶栏的「弹幕开关」区分开
+                    bottomButton("list.bullet.rectangle", fallback: "list.bullet", "弹幕库") {
                         onPanel(.danmaku)
                     }
-                    bottomButton("bubble.right", "发弹幕") {
+                    bottomButton("bubble.right", fallback: "bubble.left", "发弹幕") {
                         onSendDanmaku()
                     }
-                    bottomButton("slider.horizontal.3", "设置") {
+                    bottomButton("slider.horizontal.3", fallback: "gearshape", "设置") {
                         onPanel(.settings)
                     }
                 }
@@ -257,21 +307,25 @@ struct PlayerControls: View {
         .buttonStyle(.plain)
     }
 
-    /// 底栏按钮：图标 + 小字标签
+    /// 底栏按钮：图标 + 小字标签，点击区域同样放大
     private func bottomButton(_ systemImage: String,
+                              fallback: String,
                               _ label: String,
                               tint: Color = .white,
                               action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 3) {
-                Image(systemName: systemImage)
+                Image(systemName: safeSymbol(systemImage, fallback: fallback))
                     .font(.system(size: 17))
                 Text(label)
                     .font(.system(size: 9, weight: .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
             .foregroundStyle(tint)
-            .frame(minWidth: 30)
+            .frame(minWidth: 36, minHeight: 44)
         }
+        .contentShape(Rectangle())
         .buttonStyle(.plain)
     }
 
@@ -286,6 +340,8 @@ struct PlayerControls: View {
         } else {
             vm.setRate(1.0)
         }
+        let r = vm.playbackRate
+        onToast(abs(r - 1.0) < 0.01 ? "倍速：正常" : "倍速 \(rateLabel)")
     }
 
     private var rateLabel: String {

@@ -83,12 +83,24 @@ struct ItemDetailView: View {
     private var header: some View {
         ZStack(alignment: .bottomLeading) {
             GeometryReader { geo in
+                let w = max(geo.size.width, 1)
                 RemoteImageView(url: backdropURL, placeholderSystemImage: "photo")
-                    .frame(width: geo.size.width, height: geo.size.height)
+                    .frame(width: w, height: max(geo.size.height, 1))
                     .clipped()
                     .overlay {
-                        LinearGradient(colors: [.clear, .black.opacity(0.75)],
-                                       startPoint: .center, endPoint: .bottom)
+                        ZStack(alignment: .top) {
+                            // 底部：让海报自然融进背景
+                            LinearGradient(colors: [.clear, .black.opacity(0.75)],
+                                           startPoint: .center, endPoint: .bottom)
+                            // 顶部：给导航栏压一层深色渐变，避免返回按钮 / 标题和亮色背景图糊在一起
+                            LinearGradient(colors: [Color.black.opacity(0.88),
+                                                    Color.black.opacity(0.6),
+                                                    Color.black.opacity(0.2),
+                                                    .clear],
+                                           startPoint: .top, endPoint: .bottom)
+                                .frame(width: w, height: 150)
+                                .allowsHitTesting(false)
+                        }
                     }
             }
             .frame(height: 220)
