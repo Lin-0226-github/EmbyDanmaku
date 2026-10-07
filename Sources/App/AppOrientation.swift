@@ -13,6 +13,7 @@
 
 import SwiftUI
 import UIKit
+import ObjectiveC
 
 // MARK: - AppDelegate
 
@@ -80,12 +81,22 @@ extension Notification.Name {
 }
 
 // MARK: - 底部手势让位（防误触退出）
+//
+// iOS 15 没有 SwiftUI 的 defersSystemGestures（那是 iOS 16 的 API），
+// UIKit 的 preferredScreenEdgesDeferringSystemGestures 又是只读、只能子类重写；
+// SwiftUI 的播放器界面是 UIHostingController，无法改子类。
+// 所以用 ObjC runtime 给「最上层全屏 VC 的动态类」替换该 getter：
+//   · 实例上挂了关联对象 → 返回它（播放器：横屏 .bottom，退出恢复 []）
+//   · 没挂 → 调原实现（其它页面 / 其它 VC 行为完全不变）
 
-/// iOS 15 没有 SwiftUI 的 defersSystemGestures（那是 iOS 16 的），
-/// 这里直接对「最上层全屏 VC」（即播放器的 UIHostingController）设置让位：
-/// 开启后横屏底部第一次上滑只唤出小白条提示，需再滑一次才回主屏。
+private var kDeferEdgesKey: UInt8 = 0
+
 enum ScreenEdgeGestures {
 
+    private typealias OriginFn = @convention(c) (NSObject, Selector) -> UIRectEdge
+    private static var patchedClasses: [String] = []
+
+    /// 开 / 关「底部上滑需两次才退出主屏」。只影响调用时最上层的全屏 VC（即播放器）。
     static func deferBottomGestures(_ deferIt: Bool) {
         DispatchQueue.main.async {
             guard let scene = UIApplication.shared.connectedScenes
@@ -98,12 +109,33 @@ enum ScreenEdgeGestures {
             var vc = root.presentedViewController ?? root
             while let next = vc.presentedViewController { vc = next }
 
+            patchIfNeeded(type(of: vc))
+
             let edges: UIRectEdge = deferIt ? .bottom : []
-            if vc.preferredScreenEdgesDeferringSystemGestures != edges {
-                vc.preferredScreenEdgesDeferringSystemGestures = edges
-                vc.setNeedsUpdateOfScreenEdgesDeferringSystemGestures()
-            }
+            objc_setAssociatedObject(vc, &kDeferEdgesKey,
+                                     NSValue(uiRectEdge: edges), .OBJC_ASSOCIATION_RETAIN)
+            vc.setNeedsUpdateOfScreenEdgesDeferringSystemGestures()
         }
+    }
+
+    /// 对指定类只打一次补丁：把 preferredScreenEdgesDeferringSystemGestures 的实现
+    /// 换成「先读关联对象，没有就走原实现」。因为未挂关联对象的实例走原逻辑，
+    /// 即使 Method 对象来自公共基类，也不会影响其它视图控制器。
+    private static func patchIfNeeded(_ cls: AnyClass) {
+        let name = String(describing: cls)
+        guard !patchedClasses.contains(name) else { return }
+        patchedClasses.append(name)
+
+        let sel = #selector(getter: UIViewController.preferredScreenEdgesDeferringSystemGestures)
+        guard let method = class_getInstanceMethod(cls, sel) else { return }
+        let origin = unsafeBitCast(method_getImplementation(method), to: OriginFn.self)
+        let block: @convention(block) (NSObject, Selector) -> UIRectEdge = { holder, _ in
+            if let v = objc_getAssociatedObject(holder, &kDeferEdgesKey) as? NSValue {
+                return v.uiRectEdgeValue
+            }
+            return origin(holder, sel)
+        }
+        method_setImplementation(method, imp_implementationWithBlock(block))
     }
 }
 
