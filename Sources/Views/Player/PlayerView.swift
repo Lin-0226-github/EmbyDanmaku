@@ -121,6 +121,8 @@ struct PlayerView: View {
     @State private var toastText: String?
     @State private var toastTask: Task<Void, Never>?
     @State private var isLandscape: Bool = UIDevice.current.orientation.isLandscape
+    /// 真实安全区：铺满整屏后自己补，控制层才不会被刘海 / 横屏圆角切掉
+    @State private var safeInsets: UIEdgeInsets = .zero
 
     init(client: EmbyClient, item: BaseItem, playlist: [BaseItem], startSeconds: Double?) {
         self.client = client
@@ -137,16 +139,17 @@ struct PlayerView: View {
         ZStack(alignment: .center) {
             Color.black.ignoresSafeArea()
 
+            // 关键：GeometryReader 直接吃下整块屏幕（含安全区），
+            // 否则横屏时「安全区内尺寸」的控制层会被外层 ZStack 居中，整体上移，
+            // 顶栏按钮会被屏幕上缘切掉一截。
             GeometryReader { geo in
                 ZStack(alignment: .center) {
                     PlayerLayerView(player: vm.player, gravity: vm.videoGravity)
-                        .ignoresSafeArea()
 
                     // 弹幕层
                     DanmakuCanvasView(engine: vm.engine,
                                       isRunning: vm.isPlaying && settings.danmakuEnabled,
                                       timeProvider: { vm.danmakuCurrentTime() })
-                        .ignoresSafeArea()
                         .allowsHitTesting(false)
 
                     // 字幕层
@@ -158,11 +161,12 @@ struct PlayerView: View {
                     PlayerControls(vm: vm,
                                    onDismiss: { closePlayer() },
                                    onPanel: { openPanel($0) },
-                                       onToggleDanmaku: { toggleDanmaku() },
-                                       onSendDanmaku: { showDanmakuInput = true },
-                                       onToggleOrientation: { toggleOrientation() },
-                                       isLandscape: isLandscape,
-                                       onToast: { showToast($0) })
+                                   onToggleDanmaku: { toggleDanmaku() },
+                                   onSendDanmaku: { showDanmakuInput = true },
+                                   onToggleOrientation: { toggleOrientation() },
+                                   isLandscape: isLandscape,
+                                   insets: safeInsets,
+                                   onToast: { showToast($0) })
                         .opacity(showControls ? 1 : 0)
                         .allowsHitTesting(showControls)
 
@@ -202,6 +206,7 @@ struct PlayerView: View {
                     if !pressing, let r = previousRate { vm.setRate(r); previousRate = nil }
                 }
             }
+            .ignoresSafeArea()
 
             // 隐藏的 MPVolumeView：MPVolumeView 不会裁剪子视图（音量滑杆约 260pt 宽），
             // 叠在屏幕中央会拦截中间按钮的触摸。这里彻底挪出屏幕外并禁用命中。
@@ -215,6 +220,7 @@ struct PlayerView: View {
         .onAppear {
             scheduleControlsHide()
             recordHistory()
+            refreshInsets()
         }
         .onDisappear {
             controlsTask?.cancel()
@@ -225,13 +231,19 @@ struct PlayerView: View {
         .onChange(of: vm.isPlaying) { playing in
             if playing { scheduleControlsHide() } else { controlsTask?.cancel() }
         }
-        // 旋转设备后同步按钮图标与状态
+        // 旋转设备后同步按钮图标与安全区
         .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
             let landscape = UIDevice.current.orientation.isLandscape
             if landscape != isLandscape {
                 isLandscape = landscape
                 showToast(landscape ? "已切换到横屏" : "已切换到竖屏")
             }
+            refreshInsets()
+            OrientationController.scheduleSafeAreaRefresh()
+        }
+        // 旋转后延迟重读安全区（不捕获 self，避免 struct 在逃逸闭包里的问题）
+        .onReceive(NotificationCenter.default.publisher(for: .refreshSafeArea)) { _ in
+            safeInsets = ScreenSafeArea.insets
         }
         .overlay { panelOverlay() }
         .overlay(alignment: .bottom) {
@@ -405,6 +417,13 @@ struct PlayerView: View {
         }
         isLandscape.toggle()
         scheduleControlsHide()
+        refreshInsets()
+        OrientationController.scheduleSafeAreaRefresh()
+    }
+
+    /// 重新读取窗口安全区
+    private func refreshInsets() {
+        safeInsets = ScreenSafeArea.insets
     }
 
     /// 记一条本机播放历史，供「清单 → 播放历史」使用
@@ -479,8 +498,10 @@ struct PlayerView: View {
                     panelView(activePanel ?? .settings)
                         .id(activePanel?.id ?? "closed")
                 }
+                // 横屏时屏幕高度只有 300 多，面板必须跟着变矮，否则会顶出屏幕
                 .frame(width: geo.size.width,
-                       height: max(360, geo.size.height * 0.62))
+                       height: min(geo.size.height * 0.82,
+                                   max(320, geo.size.height * 0.62)))
                 .background(AppTheme.background)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .overlay(

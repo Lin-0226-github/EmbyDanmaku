@@ -52,6 +52,16 @@ enum OrientationController {
         }
     }
 
+    /// 旋转后系统更新窗口安全区需要一点时间，分两次广播通知让界面重读
+    static func scheduleSafeAreaRefresh() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            NotificationCenter.default.post(name: .refreshSafeArea, object: nil)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
+            NotificationCenter.default.post(name: .refreshSafeArea, object: nil)
+        }
+    }
+
     private static func apply(_ orientation: UIInterfaceOrientation) {
         // 1) 告诉系统「我现在要这个方向」
         UIDevice.current.setValue(orientation.rawValue, forKey: "orientation")
@@ -61,5 +71,35 @@ enum OrientationController {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             UIDevice.current.setValue(orientation.rawValue, forKey: "orientation")
         }
+    }
+}
+
+extension Notification.Name {
+    /// 旋转后重读窗口安全区
+    static let refreshSafeArea = Notification.Name("LplayersRefreshSafeArea")
+}
+
+// MARK: - 安全区
+
+/// 读取「真实」的窗口安全区。
+/// 播放器为了铺满整屏，GeometryReader 上加了 .ignoresSafeArea()，
+/// 此时 SwiftUI 的 safeAreaInsets 会变成 0，顶栏会被刘海 / 圆角切掉，
+/// 所以这里直接从 UIWindow 拿原始值，自己给控制层补 padding。
+enum ScreenSafeArea {
+
+    static var insets: UIEdgeInsets {
+        let scenes = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+        for scene in scenes {
+            if let window = scene.windows.first(where: { $0.isKeyWindow }) {
+                return window.safeAreaInsets
+            }
+        }
+        for scene in scenes {
+            if let window = scene.windows.first, window.bounds.width > 0 {
+                return window.safeAreaInsets
+            }
+        }
+        return .zero
     }
 }

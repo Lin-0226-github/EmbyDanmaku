@@ -24,6 +24,8 @@ struct PlayerControls: View {
     var onToggleOrientation: () -> Void
     /// 当前是否处于横屏
     var isLandscape: Bool
+    /// 真实安全区（播放器铺满整屏后自己补，避免顶栏被刘海 / 横屏圆角切掉）
+    var insets: UIEdgeInsets = .zero
     /// 轻提示（iOS 15 下不要再指望系统 sheet，直接给一次可见反馈）
     var onToast: (String) -> Void
 
@@ -125,8 +127,9 @@ struct PlayerControls: View {
                 onToggleOrientation()
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 6)
+        .padding(.top, max(6, insets.top))
+        .padding(.leading, max(12, insets.left))
+        .padding(.trailing, max(12, insets.right))
     }
 
     /// 图标名称兜底：该 SF Symbol 在当前系统字体里不存在时，换一个一定存在的，
@@ -300,8 +303,10 @@ struct PlayerControls: View {
             }
             .padding(.bottom, 14)
         }
-        .padding(.horizontal, 16)
         .padding(.top, 8)
+        .padding(.leading, max(16, insets.left))
+        .padding(.trailing, max(16, insets.right))
+        .padding(.bottom, max(14, insets.bottom))
     }
 
     private func pill(_ title: String, isActive: Bool, action: @escaping () -> Void) -> some View {
