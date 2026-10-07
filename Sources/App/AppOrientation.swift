@@ -79,6 +79,34 @@ extension Notification.Name {
     static let refreshSafeArea = Notification.Name("LplayersRefreshSafeArea")
 }
 
+// MARK: - 底部手势让位（防误触退出）
+
+/// iOS 15 没有 SwiftUI 的 defersSystemGestures（那是 iOS 16 的），
+/// 这里直接对「最上层全屏 VC」（即播放器的 UIHostingController）设置让位：
+/// 开启后横屏底部第一次上滑只唤出小白条提示，需再滑一次才回主屏。
+enum ScreenEdgeGestures {
+
+    static func deferBottomGestures(_ deferIt: Bool) {
+        DispatchQueue.main.async {
+            guard let scene = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene })
+                .first(where: { $0.activationState == .foregroundActive }),
+                let root = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController
+            else { return }
+
+            // 沿 presented 链走到最上层（播放器是 fullScreenCover 展示的）
+            var vc = root.presentedViewController ?? root
+            while let next = vc.presentedViewController { vc = next }
+
+            let edges: UIRectEdge = deferIt ? .bottom : []
+            if vc.preferredScreenEdgesDeferringSystemGestures != edges {
+                vc.preferredScreenEdgesDeferringSystemGestures = edges
+                vc.setNeedsUpdateOfScreenEdgesDeferringSystemGestures()
+            }
+        }
+    }
+}
+
 // MARK: - 安全区
 
 /// 读取「真实」的窗口安全区。
