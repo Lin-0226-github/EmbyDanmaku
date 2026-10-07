@@ -151,19 +151,17 @@ struct PlayerView: View {
                     // 字幕层
                     subtitleLayer(size: geo.size)
 
-                    // 手势层：位于控制层之下，空白区域由它响应，控制按钮优先响应
-                    gestureLayer(size: geo.size)
-
-                    // 控制层
-                    if showControls {
-                        PlayerControls(vm: vm,
-                                       onDismiss: { closePlayer() },
-                                       onPanel: { openPanel($0) },
-                                       onToggleDanmaku: { toggleDanmaku() },
-                                       onSendDanmaku: { showDanmakuInput = true },
-                                       onToast: { showToast($0) })
-                            .transition(.opacity)
-                    }
+                    // 控制层：**常驻视图树**，只用透明度显隐。
+                    // 之前用 `if showControls` 条件插入 + transition，在 iOS 15 上反复隐藏/出现几次后，
+                    // 会出现「画得出但点不着」的命中失效（触摸直接穿透到下面），这是按钮按不了的根源。
+                    PlayerControls(vm: vm,
+                                   onDismiss: { closePlayer() },
+                                   onPanel: { openPanel($0) },
+                                   onToggleDanmaku: { toggleDanmaku() },
+                                   onSendDanmaku: { showDanmakuInput = true },
+                                   onToast: { showToast($0) })
+                        .opacity(showControls ? 1 : 0)
+                        .allowsHitTesting(showControls)
 
                     // 手势提示
                     if hudText != nil {
@@ -177,11 +175,38 @@ struct PlayerView: View {
                     }
                 }
                 .frame(width: geo.size.width, height: geo.size.height)
+                // 手势全部挂在容器本身（父层手势优先级低于子按钮，点按钮不会误触发），
+                // 不再用「垫在下层的透明手势层」——那种结构在 iOS 15 上会干扰上方按钮的命中。
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 12)
+                        .onChanged { handleDragChanged($0, size: geo.size) }
+                        .onEnded { _ in handleDragEnded() }
+                )
+                .onTapGesture(count: 1) {
+                    // 单击：显示 / 隐藏控制层
+                    withAnimation(.easeOut(duration: 0.18)) { showControls.toggle() }
+                    if showControls { scheduleControlsHide() } else { controlsTask?.cancel() }
+                }
+                .onTapGesture(count: 2) {
+                    // 双击：播放 / 暂停（声明在后，优先级更高，双击时不会触发单击）
+                    vm.togglePlay()
+                    scheduleControlsHide()
+                }
+                .onLongPressGesture(minimumDuration: 0.6) {
+                    if vm.playbackRate < 2 { previousRate = vm.playbackRate; vm.setRate(3.0) }
+                } onPressingChanged: { pressing in
+                    if !pressing, let r = previousRate { vm.setRate(r); previousRate = nil }
+                }
             }
 
+            // 隐藏的 MPVolumeView：MPVolumeView 不会裁剪子视图（音量滑杆约 260pt 宽），
+            // 叠在屏幕中央会拦截中间按钮的触摸。这里彻底挪出屏幕外并禁用命中。
             VolumeHostingView(controller: volumeController)
                 .frame(width: 1, height: 1)
                 .opacity(0.01)
+                .offset(x: -3000, y: -3000)
+                .allowsHitTesting(false)
         }
         .statusBarHidden(true)
         .onAppear {
@@ -197,7 +222,12 @@ struct PlayerView: View {
         }
         .overlay { panelOverlay() }
         .overlay(alignment: .bottom) {
-            if showDanmakuInput { danmakuInputBar }
+            // 弹幕输入条：同样常驻视图树，避免条件插入导致命中失效
+            danmakuInputBar
+                .offset(y: showDanmakuInput ? 0 : 160)
+                .opacity(showDanmakuInput ? 1 : 0)
+                .allowsHitTesting(showDanmakuInput)
+                .animation(.easeOut(duration: 0.2), value: showDanmakuInput)
         }
         .overlay(alignment: .center) {
             if let text = toastText {
@@ -206,7 +236,6 @@ struct PlayerView: View {
                     .allowsHitTesting(false)
             }
         }
-        .animation(.easeOut(duration: 0.22), value: activePanel?.id ?? "")
         .animation(.easeOut(duration: 0.18), value: toastText)
         .alert("定时关闭", isPresented: Binding(get: { vm.sleepFiredMessage != nil },
                                                 set: { if !$0 { vm.sleepFiredMessage = nil } })) {
@@ -246,31 +275,8 @@ struct PlayerView: View {
     }
 
     // MARK: - 手势
-
-    private func gestureLayer(size: CGSize) -> some View {
-        Color.clear
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 12)
-                    .onChanged { handleDragChanged($0, size: size) }
-                    .onEnded { _ in handleDragEnded() }
-            )
-            .onTapGesture(count: 1) {
-                // 单击：显示 / 隐藏控制层
-                withAnimation(.easeOut(duration: 0.18)) { showControls.toggle() }
-                if showControls { scheduleControlsHide() } else { controlsTask?.cancel() }
-            }
-            .onTapGesture(count: 2) {
-                // 双击：播放 / 暂停（声明在后，优先级更高，双击时不会触发单击）
-                vm.togglePlay()
-                scheduleControlsHide()
-            }
-            .onLongPressGesture(minimumDuration: 0.6) {
-                if vm.playbackRate < 2 { previousRate = vm.playbackRate; vm.setRate(3.0) }
-            } onPressingChanged: { pressing in
-                if !pressing, let r = previousRate { vm.setRate(r); previousRate = nil }
-            }
-    }
+    //
+    // 说明：拖动 / 单击 / 双击 / 长按倍速全部挂在上面的容器上，这里只保留处理逻辑。
 
     private func handleDragChanged(_ value: DragGesture.Value, size: CGSize) {
         guard settings.gesturesEnabled else { return }
@@ -415,49 +421,51 @@ struct PlayerView: View {
 
     private func openPanel(_ panel: PlayerPanel) {
         controlsTask?.cancel()
-        withAnimation(.easeOut(duration: 0.22)) {
-            activePanel = panel
-            showControls = true
-        }
+        activePanel = panel
+        showControls = true
     }
 
     private func closePanel() {
-        withAnimation(.easeOut(duration: 0.22)) { activePanel = nil }
+        activePanel = nil
         vm.refreshDanmakuSettings()
         scheduleControlsHide()
     }
 
+    /// 面板浮层：**常驻视图树**（关闭时整体滑到屏幕外 + 禁用命中），
+    /// 不做条件插入 / 移除，规避 iOS 15 的命中失效问题。
     @ViewBuilder
     private func panelOverlay() -> some View {
-        if let panel = activePanel {
-            GeometryReader { geo in
-                ZStack(alignment: .bottom) {
-                    Color.black.opacity(0.5)
-                        .contentShape(Rectangle())
-                        .onTapGesture { closePanel() }
+        GeometryReader { geo in
+            ZStack(alignment: .bottom) {
+                Color.black
+                    .opacity(activePanel == nil ? 0 : 0.5)
+                    .contentShape(Rectangle())
+                    .onTapGesture { closePanel() }
 
-                    VStack(spacing: 0) {
-                        Capsule()
-                            .fill(Color.white.opacity(0.32))
-                            .frame(width: 42, height: 4)
-                            .padding(.top, 8)
-                            .padding(.bottom, 2)
-                        panelView(panel).id(panel.id)
-                    }
-                    .frame(width: geo.size.width,
-                           height: max(360, geo.size.height * 0.62))
-                    .background(AppTheme.background)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                    )
+                VStack(spacing: 0) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.32))
+                        .frame(width: 42, height: 4)
+                        .padding(.top, 8)
+                        .padding(.bottom, 2)
+                    panelView(activePanel ?? .settings)
+                        .id(activePanel?.id ?? "closed")
                 }
-                .frame(width: geo.size.width, height: geo.size.height)
+                .frame(width: geo.size.width,
+                       height: max(360, geo.size.height * 0.62))
+                .background(AppTheme.background)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                )
+                .offset(y: activePanel == nil ? geo.size.height + 60 : 0)
             }
-            .ignoresSafeArea(edges: .bottom)
-            .transition(.move(edge: .bottom))
+            .frame(width: geo.size.width, height: geo.size.height)
+            .allowsHitTesting(activePanel != nil)
+            .animation(.easeOut(duration: 0.24), value: activePanel)
         }
+        .ignoresSafeArea(edges: .bottom)
     }
 
     @ViewBuilder

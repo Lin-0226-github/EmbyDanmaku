@@ -53,7 +53,7 @@ struct ItemDetailView: View {
             }
         }
         .appBackground()
-        .ignoresSafeArea(edges: .top)
+        // 不再把内容顶到导航栏 / 状态栏底下：头图从导航栏下方开始，顶栏和图片彻底不重叠
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         .sheet(isPresented: $showAddToPlaylist) {
@@ -88,19 +88,10 @@ struct ItemDetailView: View {
                     .frame(width: w, height: max(geo.size.height, 1))
                     .clipped()
                     .overlay {
-                        ZStack(alignment: .top) {
-                            // 底部：让海报自然融进背景
-                            LinearGradient(colors: [.clear, .black.opacity(0.75)],
-                                           startPoint: .center, endPoint: .bottom)
-                            // 顶部：给导航栏压一层深色渐变，避免返回按钮 / 标题和亮色背景图糊在一起
-                            LinearGradient(colors: [Color.black.opacity(0.88),
-                                                    Color.black.opacity(0.6),
-                                                    Color.black.opacity(0.2),
-                                                    .clear],
-                                           startPoint: .top, endPoint: .bottom)
-                                .frame(width: w, height: 150)
-                                .allowsHitTesting(false)
-                        }
+                        // 只保留底部渐变：让海报自然融进下面的内容区
+                        LinearGradient(colors: [.clear, .black.opacity(0.75)],
+                                       startPoint: .center, endPoint: .bottom)
+                            .allowsHitTesting(false)
                     }
             }
             .frame(height: 220)

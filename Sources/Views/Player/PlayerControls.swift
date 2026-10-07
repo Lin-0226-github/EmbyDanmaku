@@ -81,7 +81,7 @@ struct PlayerControls: View {
                     .frame(minWidth: 40, minHeight: 44)
             }
             .contentShape(Rectangle())
-            .buttonStyle(.plain)
+            .buttonStyle(PlayerPressStyle())
 
             topButton(vm.videoGravity == .resizeAspect
                       ? "arrow.up.left.and.arrow.down.right" : "aspectratio.fill",
@@ -140,7 +140,7 @@ struct PlayerControls: View {
             .frame(minWidth: 40, minHeight: 44)
         }
         .contentShape(Rectangle())
-        .buttonStyle(.plain)
+        .buttonStyle(PlayerPressStyle())
     }
 
     private static func timeText(_ date: Date) -> String {
@@ -168,7 +168,7 @@ struct PlayerControls: View {
                     .frame(minWidth: 48, minHeight: 48)
             }
             .contentShape(Rectangle())
-            .buttonStyle(.plain)
+            .buttonStyle(PlayerPressStyle())
 
             Group {
                 if vm.isBuffering {
@@ -184,7 +184,7 @@ struct PlayerControls: View {
                             .frame(minWidth: 48, minHeight: 48)
                     }
                     .contentShape(Rectangle())
-                    .buttonStyle(.plain)
+                    .buttonStyle(PlayerPressStyle())
                 }
             }
 
@@ -196,7 +196,7 @@ struct PlayerControls: View {
                     .frame(minWidth: 48, minHeight: 48)
             }
             .contentShape(Rectangle())
-            .buttonStyle(.plain)
+            .buttonStyle(PlayerPressStyle())
         }
     }
 
@@ -304,7 +304,7 @@ struct PlayerControls: View {
                         .background(Capsule().fill(.black.opacity(0.25)))
                 )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PlayerPressStyle())
     }
 
     /// 底栏按钮：图标 + 小字标签，点击区域同样放大
@@ -326,7 +326,7 @@ struct PlayerControls: View {
             .frame(minWidth: 36, minHeight: 44)
         }
         .contentShape(Rectangle())
-        .buttonStyle(.plain)
+        .buttonStyle(PlayerPressStyle())
     }
 
     // MARK: 倍速快捷循环
@@ -427,5 +427,17 @@ struct ScrubberView: View {
             }
         }
         .frame(height: height)
+    }
+}
+
+// MARK: - 按钮样式
+
+/// 按下有变暗 + 缩放反馈，点击是否被接收一目了然
+struct PlayerPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.9 : 1)
+            .opacity(configuration.isPressed ? 0.5 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }
