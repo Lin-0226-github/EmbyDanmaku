@@ -12,6 +12,8 @@ struct EmbyDanmakuApp: App {
 
     @StateObject private var appState = AppState()
     @StateObject private var settings = AppSettings.shared
+    // 由它动态决定窗口允许的方向（播放器切换横竖屏用）
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     init() {
         configureAppearance()

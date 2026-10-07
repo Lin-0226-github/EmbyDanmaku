@@ -20,6 +20,10 @@ struct PlayerControls: View {
     var onPanel: (PlayerView.PlayerPanel) -> Void
     var onToggleDanmaku: () -> Void
     var onSendDanmaku: () -> Void
+    /// 横 / 竖屏切换（由宿主真正旋转屏幕）
+    var onToggleOrientation: () -> Void
+    /// 当前是否处于横屏
+    var isLandscape: Bool
     /// 轻提示（iOS 15 下不要再指望系统 sheet，直接给一次可见反馈）
     var onToast: (String) -> Void
 
@@ -73,12 +77,12 @@ struct PlayerControls: View {
     // MARK: - 顶栏
 
     private var topBar: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 10) {
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
                     .font(.system(size: 17, weight: .medium))
                     .foregroundStyle(.white)
-                    .frame(minWidth: 40, minHeight: 44)
+                    .frame(minWidth: 34, minHeight: 44)
             }
             .contentShape(Rectangle())
             .buttonStyle(PlayerPressStyle())
@@ -111,6 +115,14 @@ struct PlayerControls: View {
                 Text(Self.timeText(ctx.date))
                     .font(.system(size: 13, weight: .medium).monospacedDigit())
                     .foregroundStyle(.white.opacity(0.9))
+                    .fixedSize()
+            }
+            // 横屏 / 竖屏切换
+            topButton(isLandscape ? "rotate.left" : "rotate.right",
+                      fallback: isLandscape ? "arrow.counterclockwise" : "arrow.clockwise",
+                      isLandscape ? "竖屏" : "横屏",
+                      tint: isLandscape ? AppTheme.accent : .white) {
+                onToggleOrientation()
             }
         }
         .padding(.horizontal, 12)
@@ -137,7 +149,7 @@ struct PlayerControls: View {
                     .font(.system(size: 9, weight: .medium))
             }
             .foregroundStyle(tint)
-            .frame(minWidth: 40, minHeight: 44)
+            .frame(minWidth: 34, minHeight: 44)
         }
         .contentShape(Rectangle())
         .buttonStyle(PlayerPressStyle())

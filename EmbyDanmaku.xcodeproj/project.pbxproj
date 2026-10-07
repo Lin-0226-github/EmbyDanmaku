@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		5DDBF56ADE2A3FA417AF0D28 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0DB7571B8334F5E7680A9B20 /* Assets.xcassets */; };
+		4FAFF24817AF923316AE8E4C /* AppOrientation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E7A22749E5D1793AA124039 /* AppOrientation.swift */; };
 		BAB847DC39379C88EFB9661C /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD14A832C63D697E95FBFE99 /* AppState.swift */; };
 		FCF5E660D1B2A48939EDF1BD /* EmbyDanmakuApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E9921C1288206284A943009 /* EmbyDanmakuApp.swift */; };
 		9B264D85F5C097F619AD2D38 /* DanmakuAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFAB45AFCA6A17FDDB15E80E /* DanmakuAPI.swift */; };
@@ -50,6 +51,7 @@
 
 /* Begin PBXFileReference section */
 		0EB207C0C2938AF1ADEE5A77 /* EmbyDanmaku.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = EmbyDanmaku.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4E7A22749E5D1793AA124039 /* AppOrientation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppOrientation.swift"; sourceTree = "<group>"; };
 		CD14A832C63D697E95FBFE99 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState.swift"; sourceTree = "<group>"; };
 		1E9921C1288206284A943009 /* EmbyDanmakuApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EmbyDanmakuApp.swift"; sourceTree = "<group>"; };
 		DFAB45AFCA6A17FDDB15E80E /* DanmakuAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DanmakuAPI.swift"; sourceTree = "<group>"; };
@@ -116,6 +118,7 @@
 		A24A4D6F0745A42F18DEB5EE /* App */ = {
 			isa = PBXGroup;
 			children = (
+				4E7A22749E5D1793AA124039 /* AppOrientation.swift */,
 				CD14A832C63D697E95FBFE99 /* AppState.swift */,
 				1E9921C1288206284A943009 /* EmbyDanmakuApp.swift */,
 			);
@@ -356,6 +359,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4FAFF24817AF923316AE8E4C /* AppOrientation.swift in Sources */,
 				BAB847DC39379C88EFB9661C /* AppState.swift in Sources */,
 				FCF5E660D1B2A48939EDF1BD /* EmbyDanmakuApp.swift in Sources */,
 				9B264D85F5C097F619AD2D38 /* DanmakuAPI.swift in Sources */,

@@ -120,6 +120,7 @@ struct PlayerView: View {
     @State private var controlsTask: Task<Void, Never>?
     @State private var toastText: String?
     @State private var toastTask: Task<Void, Never>?
+    @State private var isLandscape: Bool = UIDevice.current.orientation.isLandscape
 
     init(client: EmbyClient, item: BaseItem, playlist: [BaseItem], startSeconds: Double?) {
         self.client = client
@@ -157,9 +158,11 @@ struct PlayerView: View {
                     PlayerControls(vm: vm,
                                    onDismiss: { closePlayer() },
                                    onPanel: { openPanel($0) },
-                                   onToggleDanmaku: { toggleDanmaku() },
-                                   onSendDanmaku: { showDanmakuInput = true },
-                                   onToast: { showToast($0) })
+                                       onToggleDanmaku: { toggleDanmaku() },
+                                       onSendDanmaku: { showDanmakuInput = true },
+                                       onToggleOrientation: { toggleOrientation() },
+                                       isLandscape: isLandscape,
+                                       onToast: { showToast($0) })
                         .opacity(showControls ? 1 : 0)
                         .allowsHitTesting(showControls)
 
@@ -215,10 +218,20 @@ struct PlayerView: View {
         }
         .onDisappear {
             controlsTask?.cancel()
+            // 退出播放器一律回到竖屏，解除方向锁定
+            OrientationController.portrait()
             vm.onDisappear()
         }
         .onChange(of: vm.isPlaying) { playing in
             if playing { scheduleControlsHide() } else { controlsTask?.cancel() }
+        }
+        // 旋转设备后同步按钮图标与状态
+        .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
+            let landscape = UIDevice.current.orientation.isLandscape
+            if landscape != isLandscape {
+                isLandscape = landscape
+                showToast(landscape ? "已切换到横屏" : "已切换到竖屏")
+            }
         }
         .overlay { panelOverlay() }
         .overlay(alignment: .bottom) {
@@ -375,8 +388,23 @@ struct PlayerView: View {
     }
 
     private func closePlayer() {
+        OrientationController.portrait()
         vm.onDisappear()
         dismiss()
+    }
+
+    // MARK: - 横竖屏
+
+    private func toggleOrientation() {
+        if isLandscape {
+            OrientationController.portrait()
+            showToast("竖屏")
+        } else {
+            OrientationController.landscape()
+            showToast("横屏")
+        }
+        isLandscape.toggle()
+        scheduleControlsHide()
     }
 
     /// 记一条本机播放历史，供「清单 → 播放历史」使用
