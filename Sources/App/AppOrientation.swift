@@ -113,7 +113,7 @@ enum ScreenEdgeGestures {
 
             let edges: UIRectEdge = deferIt ? .bottom : []
             objc_setAssociatedObject(vc, &kDeferEdgesKey,
-                                     NSValue(uiRectEdge: edges), .OBJC_ASSOCIATION_RETAIN)
+                                     NSNumber(value: edges.rawValue), .OBJC_ASSOCIATION_RETAIN)
             vc.setNeedsUpdateOfScreenEdgesDeferringSystemGestures()
         }
     }
@@ -130,8 +130,8 @@ enum ScreenEdgeGestures {
         guard let method = class_getInstanceMethod(cls, sel) else { return }
         let origin = unsafeBitCast(method_getImplementation(method), to: OriginFn.self)
         let block: @convention(block) (NSObject, Selector) -> UIRectEdge = { holder, _ in
-            if let v = objc_getAssociatedObject(holder, &kDeferEdgesKey) as? NSValue {
-                return v.uiRectEdgeValue
+            if let n = objc_getAssociatedObject(holder, &kDeferEdgesKey) as? NSNumber {
+                return UIRectEdge(rawValue: n.uintValue)
             }
             return origin(holder, sel)
         }
